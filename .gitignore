@@ -1,20 +1,28 @@
 # Only source code, documentation and example inputs are distributed.
 /*
 !/.gitignore
-!/*.py
+!/calc_molecule.py
+!/calc_diatomic_mol.py
+!/generate_orbitals.py
+!/build_hpc_bundle.py
 !/*.md
+!/pyproject.toml
 !/requirements-*.txt
-!/orbital_viewer.html
-!/thiophene.toml
-!/Spin_Function/
+!/scgvb/
+!/tools/
 !/examples/
 !/hpc/
 
-/Spin_Function/*
-!/Spin_Function/*.py
-!/Spin_Function/*.md
+/scgvb/**
+!/scgvb/**/
+!/scgvb/**/*.py
+!/scgvb/**/*.md
+!/scgvb/io/orbital_viewer.html
+/tools/*
+!/tools/*.py
 /examples/*
 !/examples/*.xyz
+!/examples/legacy_generate_cube.py
 !/examples/inputs/
 /examples/inputs/*
 !/examples/inputs/*.toml

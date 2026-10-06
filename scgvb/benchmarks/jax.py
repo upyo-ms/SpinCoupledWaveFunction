@@ -3,8 +3,8 @@ import argparse
 import time
 import numpy as np
 from pyscf import gto
-from NonorthgonalEnergy import SCWF_Energy as NumPyEnergy
-from NonorthgonalEnergyJAX import SCWF_Energy as JAXEnergy
+from scgvb.energy.numpy_backend import SCWF_Energy as NumPyEnergy
+from scgvb.energy.jax_backend import SCWF_Energy as JAXEnergy
 
 
 def main():

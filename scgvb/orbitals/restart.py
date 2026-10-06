@@ -4,7 +4,7 @@ from pathlib import Path
 from copy import deepcopy
 import numpy as np
 from pyscf import gto
-from Spin_Function.PrimitiveSpinFunc import generate_branch_diagrams
+from scgvb.spin.primitive import generate_branch_diagrams
 
 
 def restart_orbitals(mol, space, path):

@@ -24,7 +24,7 @@
 ## 検証
 
 ```bash
-python -m unittest test_spin_function test_energy_regression -v
+python -m unittest tests.test_spin_function tests.test_energy_regression -v
 ```
 
 11テストが成功。旧実装の保存データは `tests/data/spin_legacy_reference.npz`。

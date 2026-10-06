@@ -139,7 +139,7 @@ def orbital_block(system, C, Cs, *, norm_floor, max_iterations=1000,
     they are skipped by the line search. An infeasible start is an error.
     """
     if orbital_update == 'single_orbital':
-        from SingleOrbitalOptimization import orbital_block as sequential
+        from scgvb.optimization.single_orbital import orbital_block as sequential
         return sequential(system, C, Cs, norm_floor=norm_floor, max_iterations=max_iterations,
                           max_step=max_step, progress=progress, cutoff=orbital_overlap_cutoff,
                           start_orbital=start_orbital)
@@ -196,7 +196,7 @@ def orbital_block(system, C, Cs, *, norm_floor, max_iterations=1000,
                                  'no optimization was performed')
     value, norm, x, c, gradient = state
     if orbital_update == 'wavefunction':
-        from WavefunctionOptimization import orbital_geometry
+        from scgvb.optimization.wavefunction import orbital_geometry
         initial_inverse, wavefunction_metric, geometry_info = orbital_geometry(system, c, Cs, root, invroot)
     elif orbital_update == 'bfgs':
         initial_inverse = np.eye(len(x)) / max(1., np.max(np.abs(gradient)))
@@ -396,7 +396,7 @@ def optimize(system, C, Cs, *, verbose=False, epsilon=1e-8,
         # Preserve its actual incoming state if this spin solve fails.
         saved = np.r_[c.ravel(), old_cs]
         if spin_solver == 'projected':
-            from WavefunctionOptimization import projected_spin_solve
+            from scgvb.optimization.wavefunction import projected_spin_solve
             cs, spin_info = projected_spin_solve(system, c, old_cs, spin_overlap_cutoff)
             eigenvalue = spin_info['spin_energy_hartree']
             cs, guard_info = guarded_spin_update(system, c, old_cs, cs, norm_floor=norm_floor)
@@ -504,7 +504,7 @@ def optimize(system, C, Cs, *, verbose=False, epsilon=1e-8,
                 if iteration == joint_correction_start:
                     # Warmup stagnation must not immediately stop the new stage.
                     stalled = 0
-                from CoupledOptimization import correction
+                from scgvb.optimization.coupled import correction
                 before_joint = system.normalized_candidate(np.r_[C.ravel(), Cs])
                 if diagnostics is not None:
                     diagnostics.snapshot(system, 'joint_before', before_joint, iteration=iteration)

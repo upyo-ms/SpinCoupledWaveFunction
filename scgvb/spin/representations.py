@@ -3,10 +3,10 @@ from functools import lru_cache
 
 import numpy as np
 
-from .SpinFuncDege import spin_function_dim
-from .PrimitiveSpinFunc import generate_branch_diagrams
-from .ElementTranspose import elementary_transposition
-from .GenElectronArrange import _permutation_data
+from .dimensions import spin_function_dim
+from .primitive import generate_branch_diagrams
+from .transpositions import elementary_transposition
+from .arrangements import _permutation_data
 
 
 @lru_cache(maxsize=4)

@@ -52,7 +52,7 @@ def run_trial(system, incoming_C, incoming_Cs, settings, *, norm_floor,
               steps, destination, spin_cutoff=1e-12, correct=None):
     """Only correction may advance the state; a single floor spans all steps."""
     if correct is None:
-        from CoupledOptimization import correction
+        from scgvb.optimization.coupled import correction
         correct = correction
     destination.mkdir(parents=True, exist_ok=True)
     C, Cs = incoming_C.copy(), incoming_Cs.copy()
@@ -116,9 +116,9 @@ def main(argv=None):
         if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
             raise AssertionError(f'Input checksum mismatch: {path}')
     sys.path.insert(0, str(args.code_root))
-    from NonorthgonalEnergyJAX import SCWF_Energy
-    from AlternatingOptimization import normalized_columns
-    from Spin_Function.SpinFuncDege import spin_function_dim
+    from scgvb.energy.jax_backend import SCWF_Energy
+    from scgvb.optimization.alternating import normalized_columns
+    from scgvb.spin.dimensions import spin_function_dim
     with np.load(args.problem) as problem, np.load(args.state) as saved:
         C, Cs = saved['C'].copy(), saved['Cs'].copy()
         system = SCWF_Energy.__new__(SCWF_Energy)

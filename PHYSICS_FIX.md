@@ -48,7 +48,7 @@ Augmented Lagrangian と複素ステップ勾配、規格化許容誤差 `1e-8` 
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest \
-    test_physical_energy test_spin_function test_energy_regression test_optimizer -v
+    tests.test_physical_energy tests.test_spin_function tests.test_energy_regression tests.test_optimizer -v
 ```
 
 `test_physical_energy.py` は、非直交軌道から行列式の小行列式を使って

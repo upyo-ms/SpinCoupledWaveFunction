@@ -32,7 +32,7 @@ def initial_spin_coefficients(system, C, Cs, *, method='uniform', overlap_cutoff
                 overlap_cutoff=overlap_cutoff if method == 'eigen' else None)
     if method == 'uniform':
         return seed, info
-    from AlternatingOptimization import normalized_columns, solve_spin, guarded_spin_update
+    from scgvb.optimization.alternating import normalized_columns, solve_spin, guarded_spin_update
     c, _ = normalized_columns(C, system.S)
     incoming = Cs / np.linalg.norm(Cs)
     num, norm = system.calcEnergy(c, incoming)
@@ -40,7 +40,7 @@ def initial_spin_coefficients(system, C, Cs, *, method='uniform', overlap_cutoff
         raise FloatingPointError('Spin initialization starts from an invalid physical state')
     before = float(num / norm)
     if system.energy_evaluation == 'determinant':
-        from WavefunctionOptimization import projected_spin_solve
+        from scgvb.optimization.wavefunction import projected_spin_solve
         proposed, solver_info = projected_spin_solve(system, c, incoming, overlap_cutoff)
         solver = 'projected'
     else:

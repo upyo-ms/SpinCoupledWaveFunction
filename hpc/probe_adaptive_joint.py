@@ -29,10 +29,10 @@ def main(argv=None):
         if hashlib.sha256(path.read_bytes()).hexdigest()!=expected:
             raise AssertionError(f'Input checksum mismatch: {path}')
     sys.path.insert(0,str(args.code_root))
-    from NonorthgonalEnergyJAX import SCWF_Energy
-    from AlternatingOptimization import normalized_columns
-    from Spin_Function.SpinFuncDege import spin_function_dim
-    from CoupledOptimization import direction_basis,correction,adaptive_correction,_correction_in_basis
+    from scgvb.energy.jax_backend import SCWF_Energy
+    from scgvb.optimization.alternating import normalized_columns
+    from scgvb.spin.dimensions import spin_function_dim
+    from scgvb.optimization.coupled import direction_basis,correction,adaptive_correction,_correction_in_basis
     from hpc.probe_joint_correction import measure,run_trial
 
     with np.load(args.problem) as problem,np.load(args.state) as saved:

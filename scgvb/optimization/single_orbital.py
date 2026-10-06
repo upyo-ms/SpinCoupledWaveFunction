@@ -70,7 +70,7 @@ def orbital_block(system, C, Cs, *, norm_floor, max_iterations, max_step=.1,
     No mutual orbital orthogonality is imposed. A bound-limited stop with a
     nonzero full gradient is never reported as convergence.
     """
-    from AlternatingOptimization import OrbitalResult, normalized_columns
+    from scgvb.optimization.alternating import OrbitalResult, normalized_columns
     if not np.isfinite(norm_floor) or norm_floor <= 0:
         raise ValueError('Orbital norm floor must be positive and finite')
     if not isinstance(max_iterations, (int, np.integer)) or max_iterations < 1:

@@ -1,11 +1,11 @@
 """Reproducible real, symmetric integral data for evaluator benchmarks."""
 from types import SimpleNamespace
 import numpy as np
-from Spin_Function.SpinFuncDege import spin_function_dim
+from scgvb.spin.dimensions import spin_function_dim
 
 
 def synthetic_system(n=12, seed=23):
-    from NonorthgonalEnergy import SCWF_Energy
+    from scgvb.energy.numpy_backend import SCWF_Energy
     s = SCWF_Energy.__new__(SCWF_Energy)
     s.Ne, s.Sm, s.S = n, 1, np.eye(n)
     s.fs = spin_function_dim(n, 1, 0)

@@ -2,7 +2,7 @@
 
 `generate_orbitals.py` は `calc_molecule.py` が保存した結果JSONを読み込み、
 各非直交軌道をGaussian Cubeファイルとブラウザ用HTMLへ出力する。
-既存の `generate_cube.py` はそのまま残している。
+従来の固定係数の例は `examples/legacy_generate_cube.py` に移している。
 新しいプログラムでは分子や係数をソースコードへ書き込む必要はない。
 SCF・Full CI・軌道最適化の再実行やJAXの導入も不要。
 

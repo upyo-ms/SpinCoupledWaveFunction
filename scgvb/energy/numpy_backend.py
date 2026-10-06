@@ -5,13 +5,13 @@ import numpy as np
 from pyscf import gto
 from scipy.optimize import minimize
 
-import GetMoleculeInfor
-import Spin_Function as sf
+from scgvb.orbitals import integrals
+import scgvb.spin as sf
 
 
 class SCWF_Energy:
     def __init__(self, mol, compute_fci=True, energy_evaluation='permutation', active_space=None, determinant_size_profile='standard'):
-        from DeterminantEnergy import determinant_size_profile as validate_size_profile
+        from scgvb.energy.determinants import determinant_size_profile as validate_size_profile
         validate_size_profile(determinant_size_profile)
         self.determinant_size_profile = determinant_size_profile
         self.mol = mol
@@ -25,11 +25,11 @@ class SCWF_Energy:
         self.Ne = mol.nelectron if active_space is None else active_space.electrons
         self.Sm = mol.spin + 1
         if energy_evaluation == 'determinant':
-            from DeterminantEnergy import check_determinant_size
+            from scgvb.energy.determinants import check_determinant_size
             n = mol.nao_nr() if active_space is None else active_space.basis.shape[1]
             check_determinant_size(n, self.Ne, mol.spin, profile=self.determinant_size_profile)
         if active_space is None:
-            self.energy_nuc, self.Ne, self.Sm, self.S, self.Hcore, self.JK, self.e_fci = GetMoleculeInfor.GetMolecule(mol, compute_fci=compute_fci)
+            self.energy_nuc, self.Ne, self.Sm, self.S, self.Hcore, self.JK, self.e_fci = integrals.GetMolecule(mol, compute_fci=compute_fci)
         else:
             if compute_fci:
                 raise ValueError('Use compute_fci=False with an active space; full FCI is not a like-for-like reference')
@@ -42,7 +42,7 @@ class SCWF_Energy:
         if energy_evaluation == 'permutation':
             self.fs, self.DN, self.IndexElectron = sf.GenerateElecArrangement_SymRe(self.Ne, self.Sm)
         else:
-            from Spin_Function.SpinFuncDege import spin_function_dim
+            from scgvb.spin.dimensions import spin_function_dim
             self.fs = spin_function_dim(self.Ne, self.Sm, 0)
         self._determinant_evaluator = None
 
@@ -75,7 +75,7 @@ class SCWF_Energy:
     def calcEnergy(self, C, Cs):
         if getattr(self, 'energy_evaluation', 'permutation') == 'determinant':
             if self._determinant_evaluator is None:
-                from DeterminantEnergy import make_evaluator
+                from scgvb.energy.determinants import make_evaluator
                 self._determinant_evaluator = make_evaluator(self)
             return self._determinant_evaluator(C, Cs)
         # Normalize coefficients
@@ -218,7 +218,7 @@ class SCWF_Energy:
             return tuple(np.asarray(a) for a in result)
         if self.energy_evaluation == 'determinant':
             if self._determinant_evaluator is None:
-                from DeterminantEnergy import make_evaluator
+                from scgvb.energy.determinants import make_evaluator
                 self._determinant_evaluator = make_evaluator(self)
             return self._determinant_evaluator.spin_matrices(C)
         # Permutation weights are quadratic in the spin coefficients.
@@ -242,7 +242,7 @@ class SCWF_Energy:
         if self.energy_evaluation != 'determinant':
             raise ValueError('Wavefunction geometry requires determinant energy evaluation')
         if self._determinant_evaluator is None:
-            from DeterminantEnergy import make_evaluator
+            from scgvb.energy.determinants import make_evaluator
             self._determinant_evaluator = make_evaluator(self)
         return self._determinant_evaluator
 
@@ -268,7 +268,7 @@ class SCWF_Energy:
         """Small Gram matrix of normalized SCGVB tangents, including cross terms."""
         if self.energy_evaluation != 'determinant':
             raise ValueError('Joint metric requires determinant energy evaluation')
-        from DeterminantEnergy import make_ci_builder
+        from scgvb.energy.determinants import make_ci_builder
         build = make_ci_builder(self)
         tangents = []
         for vector in np.asarray(basis).T:
@@ -282,14 +282,14 @@ class SCWF_Energy:
                  orbital_update='bfgs', spin_solver='canonical', orbital_overlap_cutoff=1e-10,
                  joint_correction=False, joint_correction_start=1, **options):
         """Explicit method selection; the historical simultaneous solver is unchanged."""
-        from AlternatingOptimization import validate_options
+        from scgvb.optimization.alternating import validate_options
         validate_options(optimization_method, spin_overlap_cutoff, orbital_micro_iterations,
                          orbital_update, spin_solver, orbital_overlap_cutoff, joint_correction, joint_correction_start)
         if optimization_method == 'simultaneous':
             return self.augmentedLagrangian(C, Cs, **options)
         if optimization_method != 'alternating':
             raise ValueError('optimization_method must be simultaneous or alternating')
-        from AlternatingOptimization import optimize
+        from scgvb.optimization.alternating import optimize
         return optimize(self, C, Cs, spin_overlap_cutoff=spin_overlap_cutoff,
                         orbital_micro_iterations=orbital_micro_iterations,
                         orbital_update=orbital_update, spin_solver=spin_solver,

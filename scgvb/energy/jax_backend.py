@@ -6,7 +6,7 @@ jax.config.update('jax_enable_x64', True)
 import jax.numpy as jnp
 import numpy as np
 
-from NonorthgonalEnergy import SCWF_Energy as NumPyEnergy
+from scgvb.energy.numpy_backend import SCWF_Energy as NumPyEnergy
 
 
 @jax.jit
@@ -76,7 +76,7 @@ class SCWF_Energy(NumPyEnergy):
         self.energy_evaluation = 'permutation'
         self._stable_energy = None
         if energy_evaluation == 'determinant':
-            from StableEnergyJAX import make_evaluator
+            from scgvb.energy.stable_jax import make_evaluator
             self._stable_energy = make_evaluator(self)
             def target(x, mu, lam):
                 e, norm = self._stable_energy(x)

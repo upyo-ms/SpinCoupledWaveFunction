@@ -139,7 +139,7 @@ python calc_molecule.py --xyz examples/li2.xyz --backend jax --device cpu \
 ```
 
 Python APIでは `calculate(..., initial_guess='hf', initial_perturbation=0.02)`。
-軌道のみ作る場合は `from InitialOrbitals import initial_orbitals` として
+軌道のみ作る場合は `from scgvb.orbitals.initial import initial_orbitals` として
 `C, metadata = initial_orbitals(mol, method='hf')` を使う。
 初期化の設定は結果JSONの `calculation.initialization` に保存する。
 HFは初期値の改善候補であり、SCWFの収束や大域的な最小値を保証しない。
@@ -167,7 +167,7 @@ AO密度DとAO重なりSから `diag(D S)` を原子ごとに集計し、核電�
 既存の結果ファイルを、再最適化せず解析する場合：
 
 ```bash
-python PopulationAnalysis.py allyl_active.json --output allyl_population.json
+python -m scgvb.analysis.population allyl_active.json --output allyl_population.json
 ```
 
 出力を省略すると元の名前に `_population.json` を付けて保存し、元の計算結果を残す。
@@ -190,5 +190,5 @@ SCGVB活性／非活性軌道の選択とは別の概念である。
 密度変換に混入させ、電子数・スピンの総和は合うものの原子分布が誤る問題があった。
 Mulliken・Löwdin・meta-Löwdinの全方式に影響する。
 既存の波動関数係数・最適化エネルギーには影響しないため、該当する旧版出力は
-`PopulationAnalysis.py` で後処理を再実行する。対称な原子への電荷平均などは行わず、
+`scgvb/analysis/population.py` で後処理を再実行する。対称な原子への電荷平均などは行わず、
 元のSCGVB波動関数から密度を正しく再構成する修正である。

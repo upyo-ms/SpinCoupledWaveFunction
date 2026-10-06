@@ -15,7 +15,7 @@ import time
 import numpy as np
 
 CASES = {'allyl': (3, 2), 'cyclobutadiene': (4, 1), 'benzene': (6, 1)}
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def write_json(path, value):
@@ -24,9 +24,9 @@ def write_json(path, value):
 
 def worker(args):
     import jax
-    from ActiveSpace import ActiveSpace
-    from calc_molecule import build_molecule
-    from NonorthgonalEnergyJAX import SCWF_Energy
+    from scgvb.orbitals.active_space import ActiveSpace
+    from scgvb.cli.molecule import build_molecule
+    from scgvb.energy.jax_backend import SCWF_Energy
     f = np.load(args.fixture, allow_pickle=False)
     mol = build_molecule(str(f['atom']), str(f['basis_name']), multiplicity=int(f['multiplicity']))
     space = ActiveSpace(f['basis'], f['inactive'], int(f['electrons']), f['occupations'], {})
@@ -75,9 +75,9 @@ def worker(args):
 
 
 def prepare(case, args, folder):
-    from calc_molecule import build_molecule, read_xyz
-    from ActiveSpace import prepare_active_space
-    from Spin_Function.SpinFuncDege import spin_function_dim
+    from scgvb.cli.molecule import build_molecule, read_xyz
+    from scgvb.orbitals.active_space import prepare_active_space
+    from scgvb.spin.dimensions import spin_function_dim
     ne, multiplicity = CASES[case]
     geometry = read_xyz(ROOT/'examples'/f'{case}.xyz')
     atom = '\n'.join(symbol+' '+' '.join(map(str, xyz)) for symbol, xyz in geometry)
@@ -124,7 +124,7 @@ def main():
         methods = {}
         for method in ('permutation', 'determinant'):
             target = folder/(method+'.json')
-            command = [sys.executable, str(Path(__file__).resolve()), '--worker', '--fixture', str(fixture.resolve()),
+            command = [sys.executable, '-m', 'scgvb.benchmarks.evaluators', '--worker', '--fixture', str(fixture.resolve()),
                        '--method', method, '--device', args.device, '--repeats', str(args.repeats),
                        '--output', str(target.resolve())]
             with (folder/(method+'.log')).open('w') as log:

@@ -102,7 +102,7 @@ bash hpc/run_12pi.sh optimize
 全回帰テスト（主にCPUで実施、一部JAXテストは環境依存）も実行可能：
 
 ```bash
-SCGVB_RUN_12E=1 SCGVB_TEST_DEVICE=gpu python -m unittest discover -p 'test_*.py' -v
+SCGVB_RUN_12E=1 SCGVB_TEST_DEVICE=gpu python -m unittest discover -s tests -t . -p 'test_*.py' -v
 ```
 
 Slurm利用施設向けの雛形は `hpc/slurm_1gpu.example.sh`。
@@ -154,7 +154,7 @@ python calc_molecule.py --xyz examples/COT.xyz --active-space pi --pi-electrons 
 再構築が発生する。12πでの緩和計算の速度・収束を検証済みとはしていない。
 設定と小分子での使用例は `ACTIVE_SPACE.md` を参照。
 
-`benchmark_active_space.py` は最適化をせず、同じパラメータでエネルギーと勾配を評価する。
+`scgvb/benchmarks/active_space.py` は最適化をせず、同じパラメータでエネルギーと勾配を評価する。
 Pythonの最終評価キャッシュを通さず、各回GPU実行完了を待って測定する。
 
 - `setup_seconds`：HF・積分・評価器準備を含む初期化。
@@ -168,14 +168,14 @@ Pythonの最終評価キャッシュを通さず、各回GPU実行完了を待�
 - `process_peak_rss_bytes`：ホストプロセスの最大RSS。GPUメモリではない。
 - `verification`：独立NumPy/PySCFとのエネルギー・方向微分の誤差。
 
-CPU検証結果は `hpc/validation/` に同梱。コンパイルの一時領域見積もりは
+CPU検証結果は開発環境の `hpc/validation/` に保存しており、GitHub・配布アーカイブには含めない。コンパイルの一時領域見積もりは
 12e/12oで約389 MiBだったが、GPUでのコンパイラの選択・一時領域は別途測定が必要。
 測定値からGB200の速度を外挿した値は記載していない。
 
 ## 3/4/6活性電子：permutationとdeterminantの速度比較
 
 ```bash
-python benchmark_evaluators.py --case all --basis cc-pvdz --device gpu \
+python -m scgvb.benchmarks.evaluators --case all --basis cc-pvdz --device gpu \
   --repeats 30 --output results/evaluator-comparison
 ```
 
@@ -277,7 +277,7 @@ trust radius 0.02 / 0.001で比較する。新方式の半径は上記の応答�
 設定方法と範囲は `ACTIVE_SPACE.md` の「行列式サイズ設定：14電子対応」を参照。
 
 ```bash
-python benchmark_active_space.py --device gpu --synthetic-orbitals 14 \
+python -m scgvb.benchmarks.active_space --device gpu --synthetic-orbitals 14 \
   --determinant-size-profile large14 --verify --output benchmark14.json
 ```
 

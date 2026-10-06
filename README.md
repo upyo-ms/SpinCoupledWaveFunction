@@ -4,6 +4,44 @@
 テストコード、検証データ、計算結果、ログは含めていません。
 説明書にあるテスト実行や保存済み計算結果からの再開には、別途それらのファイルが必要です。
 
+## コード構成
+
+ライブラリは `scgvb` パッケージにまとめています。NumPyとJAXの計算方式・最適化アルゴリズムは共通のパッケージから利用できます。
+
+```text
+scgvb/
+  energy/        # NumPy・JAXのエネルギー評価、行列式、複合小行列式
+  orbitals/      # 活性空間、AO・π軌道、初期軌道、再開、分子積分
+  optimization/  # 同時・交互・一軌道・core最適化、スピン初期値、診断
+  spin/          # スピン関数、分枝図、電子配列、置換表現
+  io/            # TOML入力、軌道出力、軌道ビューア
+  analysis/      # 電子密度、原子電荷、結合次数
+  cli/           # 分子計算・二原子分子スキャンのコマンド処理
+  benchmarks/    # 性能測定と評価器比較
+tools/           # HPC配布アーカイブ作成
+hpc/             # 実行環境確認、ジョブスクリプト、診断コマンド
+examples/        # 分子構造とTOML入力例
+tests/           # ローカルの回帰テスト（GitHub・配布対象外）
+```
+
+これまでの `python calc_molecule.py`、`python calc_diatomic_mol.py`、
+`python generate_orbitals.py`、`python build_hpc_bundle.py` は引き続き利用できます。
+Pythonからのインポートは、次のようにパッケージ名を指定してください。
+
+```python
+from scgvb.cli.molecule import calculate, build_molecule
+from scgvb.energy.numpy_backend import SCWF_Energy
+from scgvb.orbitals.active_space import prepare_active_space
+```
+
+`python -m scgvb.cli.molecule` や `python -m scgvb.analysis.population` でも実行できます。
+パッケージをインストールする場合は `python -m pip install .`、開発中は
+`python -m pip install -e .` を使います。インストール後は `scgvb-calculate`、
+`scgvb-diatomic`、`scgvb-orbitals`、`scgvb-population` コマンドも利用できます。
+JAXは `requirements-cpu.txt` または `requirements-gpu-cuda13.txt` で追加してください。
+
+ローカルのテスト一式は `python -m unittest discover -s tests -t . -p 'test_*.py'` で実行します。
+
 ## 入力ファイルからの実行
 
 分子・基底関数・活性空間・最適化設定をTOMLファイルにまとめられます。
@@ -66,7 +104,7 @@ python calc_diatomic_mol.py --backend jax --device gpu
 ```
 
 Molecule, charge, spin, basis and distance range are configured in
-`calc_diatomic_mol.py`. An explicitly requested unavailable GPU raises an error;
+`scgvb/cli/diatomic.py`. An explicitly requested unavailable GPU raises an error;
 it does not silently fall back to CPU. See [JAX_BACKEND.md](JAX_BACKEND.md).
 
 The diatomic scan defaults to `--energy-evaluation both`: permutation and

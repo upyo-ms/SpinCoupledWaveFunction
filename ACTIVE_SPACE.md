@@ -21,7 +21,7 @@ python calc_molecule.py --atom 'Li 0 0 0; H 0 0 1.6' --basis cc-pvdz \
 全非活性閉殻が緩和対象となる。活性空間の次元と電子数は変えないが、活性空間自体も
 回転するため、初期π射影空間に厳密に固定した計算ではない。
 
-`CoreOptimization.py` はPySCFの二段階MCSCF軌道最適化を使う。
+`scgvb/optimization/core.py` はPySCFの二段階MCSCF軌道最適化を使う。
 内側ではSCGVBの非直交軌道とCsのみを最適化し、その行列式展開から1・2粒子密度行列を
 作る。FCI係数を独立に最適化したりFCI固有値問題を解いたりはしない。
 外側では閉殻・活性・仮想空間の間を回転し、coreの二重占有とcore–active直交性を保つ。
@@ -182,7 +182,7 @@ MO番号はHFの計算結果に依存する。縮退や構造変化をまたい�
 
 ## 共通エンジン
 
-`ActiveSpace.py` が固定軌道 `inactive` とS-直交規格化した基底 `basis` を生成する。
+`scgvb/orbitals/active_space.py` が固定軌道 `inactive` とS-直交規格化した基底 `basis` を生成する。
 最適化変数Xと出力のAO係数Cの関係は `C = basis @ X`。
 これにより非活性軌道との直交性を常に保ち、活性軌道同士の非直交性は保たれる。
 full版では従来どおりAO係数を直接最適化する。
@@ -195,7 +195,7 @@ full版では従来どおりAO係数を直接最適化する。
 - 全エネルギー：`E_nuc + E_inactive + numerator / norm`
 
 スピン関数、軌道初期化、規格化、拡張Lagrangian最適化、Rayleigh商の勾配・精密化は
-full版と共通。`NonorthgonalEnergy.py` と `NonorthgonalEnergyJAX.py` は両方の問題を扱う。
+full版と共通。`scgvb/energy/numpy_backend.py` と `scgvb/energy/jax_backend.py` は両方の問題を扱う。
 `calcEnergy` は活性部分の分子とノルムを返す。閉殻定数は最適化対象の分子に含めず、
 最終全エネルギーに加える。
 
@@ -262,7 +262,7 @@ HTMLとmanifestで非活性・二重占有軌道を区別する。
 ## 検証
 
 ```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest discover -p 'test_*.py' -v
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest discover -s tests -t . -p 'test_*.py' -v
 ```
 
 旧置換評価とのエネルギー・ノルム・複素ステップ勾配の一致、JAX自動微分との一致、

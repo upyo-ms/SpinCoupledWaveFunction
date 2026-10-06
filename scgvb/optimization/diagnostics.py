@@ -18,7 +18,7 @@ class OptimizationDiagnostics:
         self.inactive = np.zeros((system.mol.nao_nr(), 0)) if space is None else space.inactive.copy()
         self.ecore = system.energy_nuc + system.inactive_energy
         self.macro = 0
-        from Spin_Function.PrimitiveSpinFunc import generate_branch_diagrams
+        from scgvb.spin.primitive import generate_branch_diagrams
         np.savez_compressed(self.path/'reference.npz', ao_overlap=system.mol.intor('int1e_ovlp'),
                             spin_branch_diagrams=generate_branch_diagrams(
                                 (system.Ne + system.mol.spin)//2, (system.Ne - system.mol.spin)//2))

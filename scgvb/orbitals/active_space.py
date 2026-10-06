@@ -6,7 +6,7 @@ optional inactive orbital relaxation is implemented in CoreOptimization.py.
 from dataclasses import dataclass
 import numpy as np
 from pyscf import scf, ao2mo
-from Spin_Function.SpinFuncDege import spin_function_dim
+from scgvb.spin.dimensions import spin_function_dim
 
 
 @dataclass
@@ -28,7 +28,7 @@ class ActiveSpace:
         return effective_h, eri, float(constant)
 
     def initial_orbitals(self, method, seed, perturbation, h):
-        from InitialOrbitals import orbital_guess_from_reference
+        from scgvb.orbitals.initial import orbital_guess_from_reference
         if method == 'core':
             _, orbitals = np.linalg.eigh(h)
             nb = int(np.count_nonzero(self.occupations == 2))
@@ -73,7 +73,7 @@ def prepare_active_space(mol, frozen_core=0, inactive_mos=None, active_mos=None,
             raise ValueError('ao_threshold must be strictly between 0 and 1')
         if ao_electrons is not None and (type(ao_electrons) is not int or ao_electrons < 2):
             raise ValueError('ao_electrons must be an integer >= 2')
-        from AOSpace import ao_targets
+        from scgvb.orbitals.ao_space import ao_targets
         ao_data = ao_targets(mol, orbitals)  # Validate labels before starting HF.
     elif orbitals is not None or ao_electrons is not None or ao_threshold != .2:
         raise ValueError('orbitals/ao_electrons/ao_threshold require active_space=ao')
@@ -92,7 +92,7 @@ def prepare_active_space(mol, frozen_core=0, inactive_mos=None, active_mos=None,
     if active_space == 'pi':
         if frozen_core or inactive_mos is not None or active_mos is not None:
             raise ValueError('pi cannot be combined with manual MO selection')
-        from PiSpace import pi_targets
+        from scgvb.orbitals.pi_space import pi_targets
         targets = pi_targets(mol, pi_normal_mode)
     mf = scf.RHF(mol) if mol.spin == 0 else scf.ROHF(mol)
     mf.conv_tol = 1e-10
@@ -104,11 +104,11 @@ def prepare_active_space(mol, frozen_core=0, inactive_mos=None, active_mos=None,
     metadata = {'selection': active_space, 'reference': 'RHF' if mol.spin == 0 else 'ROHF',
                 'reference_energy_hartree': float(mf.e_tot), 'inactive_orbitals_optimized': False}
     if active_space == 'ao':
-        from AOSpace import select_ao_space
+        from scgvb.orbitals.ao_space import select_ao_space
         basis, inactive, ne, active_occ, ao_metadata = select_ao_space(mf, ao_data, ao_electrons, ao_threshold)
         metadata.update(ao_metadata)
     elif active_space == 'pi':
-        from PiSpace import select_pi_space
+        from scgvb.orbitals.pi_space import select_pi_space
         basis, inactive, ne, active_occ, pi_metadata = select_pi_space(mf, targets, pi_electrons)
         metadata.update(pi_metadata)
     elif active_space == 'benzene-pi':

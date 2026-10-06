@@ -15,9 +15,9 @@ python hpc/check_environment.py --device gpu | tee "$SCGVB_OUT/environment.json"
 python -m pip freeze > "$SCGVB_OUT/pip-freeze.txt"
 case "$SCGVB_MODE" in
   benchmark)
-    python benchmark_active_space.py --device gpu --verify --repeats 5 \
+    python -m scgvb.benchmarks.active_space --device gpu --verify --repeats 5 \
       --output "$SCGVB_OUT/synthetic12.json" > "$SCGVB_OUT/synthetic12.log" 2>&1
-    python benchmark_active_space.py --device gpu --xyz examples/polyene12.xyz \
+    python -m scgvb.benchmarks.active_space --device gpu --xyz examples/polyene12.xyz \
       --pi-electrons 12 --verify --repeats 5 \
       --output "$SCGVB_OUT/polyene12.json" > "$SCGVB_OUT/polyene12.log" 2>&1
     ;;
@@ -27,7 +27,7 @@ case "$SCGVB_MODE" in
       --verbose --output "$SCGVB_OUT/polyene12_result.json" > "$SCGVB_OUT/optimization.log" 2>&1
     ;;
   verify)
-    SCGVB_RUN_12E=1 SCGVB_TEST_DEVICE=gpu python -m unittest test_memory_evaluator -v \
+    SCGVB_RUN_12E=1 SCGVB_TEST_DEVICE=gpu python -m unittest tests.test_memory_evaluator -v \
       > "$SCGVB_OUT/verification.log" 2>&1
     ;;
   *) printf '%s\n' 'Usage: bash hpc/run_12pi.sh [benchmark|optimize|verify]' >&2; exit 2 ;;

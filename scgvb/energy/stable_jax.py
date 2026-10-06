@@ -9,9 +9,9 @@ import jax
 import jax.numpy as jnp
 from pyscf import ao2mo
 from pyscf.fci import cistring
-from Spin_Function.PrimitiveSpinFunc import PrSpinFunc_gen
-from DeterminantEnergy import determinant_space_size, check_determinant_size
-from CompoundMinors import make_compounds
+from scgvb.spin.primitive import PrSpinFunc_gen
+from scgvb.energy.determinants import determinant_space_size, check_determinant_size
+from scgvb.energy.compound_minors import make_compounds
 
 
 def make_hamiltonian(h, eri, na, nb, device, block_size=32):

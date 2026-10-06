@@ -6,7 +6,7 @@ variational CI parameters. PySCF is used only to apply the Hamiltonian.
 import math
 import numpy as np
 from pyscf import ao2mo, fci
-from Spin_Function.PrimitiveSpinFunc import PrSpinFunc_gen
+from scgvb.spin.primitive import PrSpinFunc_gen
 
 
 def determinant_space_size(n, ne, spin):
@@ -35,7 +35,7 @@ def check_determinant_size(n, ne, spin, limit=None, *, profile='standard'):
         raise ValueError('Invalid electron count/spin for the orbital space')
     # Also bound primitive spin coefficients and polynomial minor evaluation.
     count = determinant_space_size(n, ne, spin)
-    from Spin_Function.SpinFuncDege import spin_function_dim
+    from scgvb.spin.dimensions import spin_function_dim
     spin_entries = math.comb(ne, nb) * spin_function_dim(ne, spin + 1, 0)
     minor_entries = max(math.comb(n, k) * math.comb(ne, k)
                         for k in range(max(na, nb) + 1))

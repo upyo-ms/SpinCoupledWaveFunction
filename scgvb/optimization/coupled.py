@@ -7,7 +7,7 @@ derived SCGVB quantities. The physical tangent metric includes cross terms.
 import time
 import numpy as np
 from scipy.linalg import eigh
-from AlternatingOptimization import normalized_columns
+from scgvb.optimization.alternating import normalized_columns
 
 
 def retract(C, Cs, basis, coordinates, overlap):
@@ -49,7 +49,7 @@ def direction_basis(system, C, Cs, *, spin_cutoff, previous=None, max_directions
     """Pure orbital/spin directions plus a previous accepted joint displacement."""
     if not np.isfinite(direction_cutoff) or not 0 < direction_cutoff < 1:
         raise ValueError('Joint direction cutoff must be finite and between 0 and 1')
-    from WavefunctionOptimization import projected_spin_solve
+    from scgvb.optimization.wavefunction import projected_spin_solve
     w, v = eigh(system.S)
     if w[0] <= 0:
         raise FloatingPointError('Invalid coupled orbital overlap')

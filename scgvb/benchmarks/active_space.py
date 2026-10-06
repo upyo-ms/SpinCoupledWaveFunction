@@ -30,15 +30,15 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.repeats < 1:
         parser.error('--repeats must be positive')
-    from NonorthgonalEnergyJAX import SCWF_Energy
+    from scgvb.energy.jax_backend import SCWF_Energy
     import jax
     # Resolve explicitly before any expensive setup; GPU failure never falls back.
     device = jax.devices(args.device)[0]
     setup_start = time.perf_counter()
     if args.xyz:
-        from calc_molecule import build_molecule, read_xyz
-        from ActiveSpace import prepare_active_space
-        from NonorthgonalEnergy import SCWF_Energy as NumPyEnergy
+        from scgvb.cli.molecule import build_molecule, read_xyz
+        from scgvb.orbitals.active_space import prepare_active_space
+        from scgvb.energy.numpy_backend import SCWF_Energy as NumPyEnergy
         mol = build_molecule(read_xyz(args.xyz), basis=args.basis)
         space = prepare_active_space(mol, active_space='pi', pi_electrons=args.pi_electrons, pi_normal_mode=args.pi_normal_mode)
         reference = NumPyEnergy(mol, compute_fci=False, active_space=space, energy_evaluation='determinant', determinant_size_profile=args.determinant_size_profile)
@@ -46,7 +46,7 @@ def main(argv=None):
         x = np.r_[C.ravel(), np.ones(reference.fs)]
         description = {'xyz': str(args.xyz), 'basis': args.basis, 'active_space': space.metadata}
     else:
-        from BenchmarkProblems import synthetic_system
+        from scgvb.benchmarks.problems import synthetic_system
         reference, x = synthetic_system(args.synthetic_orbitals)
         description = {'synthetic_orbitals': args.synthetic_orbitals, 'seed': 23}
     reference.determinant_size_profile = args.determinant_size_profile

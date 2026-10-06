@@ -1,18 +1,18 @@
 # JAX版
 
-`NonorthgonalEnergy.py` のNumPy・複素ステップ微分版はそのまま残している。
-`NonorthgonalEnergyJAX.py` はそのクラスを継承し、エネルギー評価と勾配を
+`scgvb/energy/numpy_backend.py` のNumPy・複素ステップ微分版はそのまま残している。
+`scgvb/energy/jax_backend.py` はそのクラスを継承し、エネルギー評価と勾配を
 倍精度のJAX JIT・自動微分に置き換える。Augmented Lagrangian、停滞時の
 規格化エネルギーによる補助処理、収束判定は既存実装を共用する。
 
 ```python
-from NonorthgonalEnergyJAX import SCWF_Energy
+from scgvb.energy.jax_backend import SCWF_Energy
 
 scwf = SCWF_Energy(mol, device='cpu')  # NVIDIA環境では 'gpu'
 energy, C, Cs = scwf.augmentedLagrangian(C, Cs)
 ```
 
-従来版を選ぶ場合は `from NonorthgonalEnergy import SCWF_Energy` を使用する。
+従来版を選ぶ場合は `from scgvb.energy.numpy_backend import SCWF_Energy` を使用する。
 `calc_diatomic_mol.py` は `--backend numpy`（既定値）または `--backend jax` で
 切り替えられる。JAXの `--device` を省略するとJAXの既定デバイスを使用する。
 
@@ -35,10 +35,10 @@ energy, C, Cs = scwf.augmentedLagrangian(C, Cs)
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest \
-    test_jax_energy test_physical_energy test_optimizer \
-    test_energy_regression test_spin_function -v
+    tests.test_jax_energy tests.test_physical_energy tests.test_optimizer \
+    tests.test_energy_regression tests.test_spin_function -v
 
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python benchmark_jax.py --device cpu
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m scgvb.benchmarks.jax --device cpu
 ```
 
 JAXテストはJAX未導入ならスキップする。既存版はJAXをimportしない。
@@ -67,7 +67,7 @@ NVIDIA GPU上での実測は、このMacでは行っていない。
 
 The optional `--energy-evaluation determinant` (NumPy and JAX) evaluates the same
 SCWF through determinant amplitudes in an
-orthonormal AO basis (`StableEnergyJAX.py`). These amplitudes are derived from
+orthonormal AO basis (`scgvb/energy/stable_jax.py`). These amplitudes are derived from
 nonorthogonal orbital coefficients and spin coefficients; they are not additional
 optimization variables. No Full CI eigenvalue problem is solved. The original
 nonorthogonal orbitals remain the output. Permutation evaluation remains the default.
@@ -99,7 +99,7 @@ energy evaluation, `method = "alternating"`, and `spin_solver = "projected"`.
 It is disabled by default; `--no-joint-correction` preserves previous behavior.
 Existing simultaneous, BFGS, wavefunction and single-orbital methods remain available.
 
-`CoupledOptimization.py` selects at most six tangent directions from orbital
+`scgvb/optimization/coupled.py` selects at most six tangent directions from orbital
 and spin gradients, the projected spin response, and an earlier accepted joint
 step. It forms a small physical wavefunction tangent Gram matrix, including
 orbital/spin cross terms. A central difference of retracted physical gradients

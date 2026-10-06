@@ -7,8 +7,8 @@ apply to the resulting *joint* state. Existing correction APIs are unchanged.
 import time
 import numpy as np
 from scipy.linalg import eigh
-from AlternatingOptimization import normalized_columns
-from CoupledOptimization import (direction_basis, reduced_gradient, reduced_hessian,
+from scgvb.optimization.alternating import normalized_columns
+from scgvb.optimization.coupled import (direction_basis, reduced_gradient, reduced_hessian,
                                  retract, append_spin_residual, _physical_residual)
 
 

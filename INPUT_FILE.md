@@ -324,7 +324,7 @@ CLIでも `--initial-json result.json` を利用でき、`--check` で入力と�
 
 ## 結合次数の自動出力
 
-通常計算と保存JSONの `PopulationAnalysis.py` による解析の両方で、電荷・スピン
+通常計算と保存JSONの `scgvb/analysis/population.py` による解析の両方で、電荷・スピン
 解析に続いてMayer結合次数とWiberg–Löwdin結合指数を出力する。追加指定は不要。
 正規化SCGVBの全一電子密度（inactive電子を含む）を共有し、再最適化しない。
 

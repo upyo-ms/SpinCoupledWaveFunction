@@ -10,7 +10,7 @@ from scipy.linalg import null_space
 from pyscf import ao2mo, fci, mcscf
 from pyscf.mcscf import mc2step
 
-from DeterminantEnergy import make_ci_builder, check_determinant_size
+from scgvb.energy.determinants import make_ci_builder, check_determinant_size
 
 
 def complete_orbitals(space, overlap):

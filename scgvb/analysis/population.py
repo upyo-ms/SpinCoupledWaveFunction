@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 from scipy.linalg import cholesky, solve_triangular
 from pyscf import fci
-from DeterminantEnergy import make_ci_builder
+from scgvb.energy.determinants import make_ci_builder
 
 
 def scgvb_density(overlap, C, Cs, spin, inactive=None, *, determinant_size_profile='standard'):
@@ -185,7 +185,7 @@ def main():
     parser.add_argument('result', type=Path)
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
-    from calc_molecule import build_molecule
+    from scgvb.cli.molecule import build_molecule
     result = json.loads(args.result.read_text())
     m = result['molecule']
     mol = build_molecule(m['atoms'], m['basis'], m['charge'], m['multiplicity'], m.get('coordinate_unit', 'Angstrom'))
