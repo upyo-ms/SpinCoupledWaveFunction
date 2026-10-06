@@ -30,6 +30,10 @@
 !/hpc/*.py
 !/hpc/*.sh
 
+# Cluster-specific batch scripts are local only.
+/hpc/rikyu*
+/hpc/*.sbatch
+
 # Tests and local artifacts stay on this machine.
 test.py
 test_*.py

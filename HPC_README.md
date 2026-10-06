@@ -106,6 +106,7 @@ SCGVB_RUN_12E=1 SCGVB_TEST_DEVICE=gpu python -m unittest discover -s tests -t . 
 ```
 
 Slurm利用施設向けの雛形は `hpc/slurm_1gpu.example.sh`。
+rikyu専用のバッチファイル（`hpc/rikyu*`、`hpc/*.sbatch`）はローカルに保持し、GitHub・配布アーカイブには含めない。
 アカウント、パーティション、GPU要求構文、環境有効化、時間・メモリ指定は
 施設に合わせて編集する。実際のスケジューラが未確認なので、自動投入は行わない。
 4 GPU割り当て時も現実装は1 GPUだけを使う。複数の独立した初期値・構造の計算は、

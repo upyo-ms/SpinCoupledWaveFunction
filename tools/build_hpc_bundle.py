@@ -57,7 +57,8 @@ def build(output):
     ]
     for pattern in ('scgvb/**/*.py','scgvb/**/*.md','tools/*.py','hpc/*.py','hpc/*.sh',
                     'examples/*.xyz','examples/inputs/*.toml'):
-        names.extend(str(p.relative_to(ROOT)) for p in ROOT.glob(pattern))
+        names.extend(str(p.relative_to(ROOT)) for p in ROOT.glob(pattern)
+                     if not (p.parent == ROOT/'hpc' and p.name.lower().startswith('rikyu')))
     names = sorted(set(names))
     content = {name: (ROOT/name).read_bytes() for name in names}
     validate_local_imports(content)
