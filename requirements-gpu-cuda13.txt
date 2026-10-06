@@ -1,0 +1,4 @@
+# Install on Linux aarch64/x86_64, not on the development Mac.
+# CUDA 13 wheels require a compatible NVIDIA driver (>=580 per JAX docs).
+-r requirements-base.txt
+jax[cuda13]==0.11.2

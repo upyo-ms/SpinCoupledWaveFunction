@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>非直交軌道ビューア</title>
+<style>
+body{margin:0;font:16px system-ui,sans-serif;color:#213247;background:#f4f7fa}header{padding:22px 28px;background:#fff;border-bottom:1px solid #ddd}h1{margin:0 0 8px;font-size:23px}p{margin:8px 0;color:#536477}main{display:grid;grid-template-columns:280px 1fr;min-height:75vh}aside{padding:24px}label{display:block;margin:18px 0 8px}select,input,button{box-sizing:border-box;font:inherit;padding:8px;width:100%;border:1px solid #bcc8d3;border-radius:5px;background:white}button{cursor:pointer;margin-top:12px}#viewer{position:relative;min-height:650px;height:78vh}#status{line-height:1.6;font-size:14px}a{color:#195dab}.positive{color:#d33b35}.negative{color:#245edb}@media(max-width:650px){main{grid-template-columns:1fr}#viewer{min-height:450px;height:65vh}}
+</style></head><body>
+<header><h1>非直交軌道</h1><p>計算された各軌道の正負の等値面を表示します。ドラッグで回転、スクロールで拡大。</p></header>
+<main><aside>
+<label for="orbital">軌道番号（1始まり）</label><select id="orbital"></select>
+<label for="iso">等値面の絶対値 / Bohr<sup>−3/2</sup></label><input id="iso" type="number" min="0.000001" step="0.01">
+<label for="opacity">不透明度</label><input id="opacity" type="range" min="0.1" max="1" step="0.05" value="0.8">
+<button id="apply">表示を更新</button><button id="reset">視点をリセット</button>
+<p><span class="positive">■ 正の振幅</span>　<span class="negative">■ 負の振幅</span></p>
+<p id="status" role="status">ビューアを読み込んでいます。表示されない場合はネットワーク接続を確認してください。</p>
+<p id="normalization"></p><p><a id="download">選択中のCubeを保存</a></p>
+<p>色は軌道の位相を表します。電子密度や占有数の表示ではありません。</p>
+</aside><div id="viewer" aria-label="分子と非直交軌道の3D表示"></div></main>
+<script id="orbital-data" type="application/json">__SCWF_DATA__</script>
+<script src="__VIEWER_SCRIPT__"></script>
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('orbital-data').textContent);
+const status=document.getElementById('status');
+const selection=document.getElementById('orbital');
+const iso=document.getElementById('iso');
+const opacity=document.getElementById('opacity');
+data.orbitals.forEach((o,i)=>{const option=document.createElement('option');option.value=i;option.textContent=`軌道 ${o.orbital}${o.role==='inactive_doubly_occupied'?'（非活性・二重占有）':''}`;selection.appendChild(option)});
+iso.value=data.isovalue;
+document.getElementById('normalization').textContent=data.normalized?'各軌道を個別に規格化して表示（直交化なし）。':'保存された軌道係数をそのまま表示（規格化・直交化なし）。';
+let viewer=null,downloadURL=null;
+function draw(){
+ const level=Number(iso.value);
+ if(!Number.isFinite(level)||level<=0){status.textContent='正の等値面値を入力してください。';return;}
+ const o=data.orbitals[Number(selection.value)];
+ viewer.removeAllShapes();
+ viewer.addVolumetricData(o.cube,'cube',{isoval:level,color:'#d33b35',opacity:Number(opacity.value)});
+ viewer.addVolumetricData(o.cube,'cube',{isoval:-level,color:'#245edb',opacity:Number(opacity.value)});
+ viewer.render();
+ status.textContent=`軌道 ${o.orbital}：格子上の範囲 ${o.minimum.toPrecision(4)} ～ ${o.maximum.toPrecision(4)}`;
+ if(level>Math.max(Math.abs(o.minimum),Math.abs(o.maximum)))status.textContent+='。等値面値が大きすぎるため軌道が表示されません。';
+ if(downloadURL)URL.revokeObjectURL(downloadURL);
+ downloadURL=URL.createObjectURL(new Blob([o.cube],{type:'text/plain'}));
+ const link=document.getElementById('download');link.href=downloadURL;link.download=o.file;
+}
+try{
+ if(!window.$3Dmol)throw Error('3Dmol.jsを読み込めません。ネット接続、または --viewer-js を確認してください。');
+ viewer=$3Dmol.createViewer(document.getElementById('viewer'),{backgroundColor:'white'});
+ viewer.addModel(data.xyz,'xyz');viewer.setStyle({},{stick:{radius:0.1},sphere:{scale:0.25}});
+ viewer.zoomTo();draw();
+ selection.addEventListener('change',draw);
+ document.getElementById('apply').addEventListener('click',draw);
+ document.getElementById('reset').addEventListener('click',()=>{viewer.zoomTo();viewer.render()});
+ window.addEventListener('resize',()=>{viewer.resize();viewer.render()});
+}catch(error){status.textContent=error.message;}
+</script></body></html>

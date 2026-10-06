@@ -1,0 +1,21 @@
+[molecule]
+atom = """
+Li 0 0 0
+H  0 0 1.6
+"""
+basis = "cc-pvdz"
+charge = 0
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+frozen_core = 1
+optimize_core = true
+
+[output]
+path = "lih_relaxed_core.json"

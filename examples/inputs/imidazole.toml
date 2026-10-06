@@ -1,0 +1,22 @@
+# Explicit MINAO targets. pz is along the input Cartesian z axis.
+[molecule]
+xyz = "../imidazole.xyz"
+basis = "cc-pvdz"
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "ao"
+orbitals = [
+    "1 2pz A", "2 2pz A", "3 2pz A","4 2pz A", "5 2pz A",
+]
+ao_electrons = 6
+optimize_core = true # Relax sigma/inactive space, keeping the selected 1s core frozen.
+
+[output]
+path = "imidazole_ao.json"

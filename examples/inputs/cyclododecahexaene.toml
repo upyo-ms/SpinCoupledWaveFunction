@@ -1,0 +1,21 @@
+# C12H12 / [12]annulene: idealized planar benchmark, NOT an optimized geometry.
+[molecule]
+xyz = "../cyclododecahexaene.xyz"
+basis = "cc-pvdz"
+charge = 0
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "gpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "pi"
+pi_electrons = 12
+pi_normal_mode = "global"
+optimize_core = false # Fixed inactive space for the initial 12-electron benchmark.
+
+[output]
+path = "cyclododecahexaene_active.json"

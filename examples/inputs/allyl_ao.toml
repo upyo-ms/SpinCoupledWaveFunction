@@ -1,0 +1,23 @@
+# Explicit MINAO targets. pz is along the input Cartesian z axis.
+[molecule]
+xyz = "../allyl.xyz"
+basis = "cc-pvdz"
+multiplicity = 2
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "ao"
+orbitals = [
+    "1 2pz A", "3 2pz A", "5 2pz A",
+#    "1 1s F", "3 1s F", "5 1s F",
+]
+ao_electrons = 3
+optimize_core = true # Relax sigma/inactive space, keeping the selected 1s core frozen.
+
+[output]
+path = "allyl_ao.json"

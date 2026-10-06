@@ -1,0 +1,29 @@
+[molecule]
+xyz = "../phenazine.xyz"
+basis = "cc-pvdz"
+charge = 0
+multiplicity = 1
+[calculation]
+backend = "jax"
+device = "gpu"
+energy_evaluation = "determinant"
+determinant_size_profile = "large14"
+initial_guess = "hf"
+initial_perturbation = 0.02
+seed = 40
+[active_space]
+mode = "ao"
+ao_electrons = 14
+ao_threshold = 0.2
+optimize_core = true
+orbitals = ["1 2pz A", "2 2pz A", "3 2pz A", "4 2pz A", "5 2pz A", "6 2pz A", "7 2pz A", "8 2pz A", "9 2pz A", "10 2pz A", "11 2pz A", "12 2pz A", "13 2pz A", "14 2pz A"]
+[optimizer]
+method = "simultaneous"
+epsilon = 1e-6
+core_max_iterations = 50
+core_gradient_tolerance = 1e-6
+max_outer_iterations = 50
+max_inner_iterations = 1000
+[output]
+path = "result_relaxed_core.json"
+verbose = 2

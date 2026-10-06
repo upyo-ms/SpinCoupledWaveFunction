@@ -1,0 +1,20 @@
+# Allyl radical: 3 pi electrons, relaxed doubly occupied core/sigma orbitals.
+[molecule]
+xyz = "../allyl.xyz" # Paths are relative to this input file.
+basis = "cc-pvdz"
+charge = 0
+multiplicity = 2
+
+[calculation]
+backend = "jax"
+device = "cpu" # Change to "gpu" on the supercomputer.
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "pi"
+pi_electrons = 3
+optimize_core = true
+
+[output]
+path = "allyl_active.json"

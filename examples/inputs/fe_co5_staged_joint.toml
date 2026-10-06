@@ -1,0 +1,40 @@
+# Experimental fresh HF start with independently solved spin coefficients.
+# Sweeps 1-20: alternating only; from sweep 21: add joint corrections.
+# The switch time is a comparison setting, not a validated convergence guarantee.
+[molecule]
+xyz = "../fe_co5.xyz"
+basis = "cc-pvdz"
+charge = 0
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "gpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+initial_perturbation = 0.02
+initial_spin_guess = "eigen"
+initial_spin_overlap_cutoff = 1e-12
+
+[active_space]
+mode = "ao"
+orbitals = ["1 3d 4s A"]
+ao_threshold = 0.05
+ao_electrons = 12
+optimize_core = false
+
+[optimizer]
+method = "alternating"
+orbital_update = "single_orbital"
+spin_solver = "projected"
+spin_overlap_cutoff = 1e-12
+orbital_overlap_cutoff = 1e-10
+orbital_micro_iterations = 3
+max_inner_iterations = 12
+max_outer_iterations = 50
+joint_correction = true
+joint_correction_start = 21
+
+[output]
+path = "fe_co5_staged_joint_result.json"
+verbose = 2

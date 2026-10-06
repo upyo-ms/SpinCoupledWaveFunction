@@ -1,0 +1,35 @@
+# Explicit MINAO targets. pz is along the input Cartesian z axis.
+[molecule]
+xyz = "../thiophene.xyz"
+basis = "cc-pvdz"
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+#initial_guess = "hf"
+initial_json = "thiophene_sto3g.json"
+
+[optimizer]
+method = "alternating"
+orbital_update = "single_orbital"
+spin_solver = "projected"
+spin_overlap_cutoff = 1e-12
+orbital_micro_iterations = 3
+max_inner_iterations = 12
+max_outer_iterations = 50
+joint_correction = true
+joint_correction_start = 21
+
+[active_space]
+mode = "ao"
+orbitals = [
+    "1 2pz A", "2 2pz A", "3 2pz A","4 2pz A", "5 3pz A",
+]
+ao_electrons = 6
+optimize_core = true # Relax all inactive orbitals; no F targets in this input.
+
+[output]
+path = "thiophene_ccpvdz_verbose.json"
+verbose = 2

@@ -1,0 +1,32 @@
+# Exploratory SCGVB(12e,12o); AVAS-style Fe 3d/4s target space.
+# This selects an initial space, not a reproduction of the published CASPT2 orbitals.
+# At this cc-pVDZ geometry, threshold 0.05 retains six occupied and six virtual
+# combinations. The smallest retained virtual projection is about 0.05574.
+[molecule]
+xyz = "../fe_co5.xyz"
+basis = "cc-pvdz"
+charge = 0
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "gpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "ao"
+orbitals = ["1 3d 4s A"]
+ao_threshold = 0.05
+ao_electrons = 12
+optimize_core = true
+
+[optimizer]
+method = "alternating"
+spin_overlap_cutoff = 1e-10
+# Re-solve spin coefficients after each short orbital update; 0 keeps full blocks.
+orbital_micro_iterations = 5
+
+[output]
+path = "fe_co5_alternating_result.json"
+verbose = 2

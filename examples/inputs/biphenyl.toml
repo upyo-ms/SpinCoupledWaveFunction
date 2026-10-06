@@ -1,0 +1,19 @@
+[molecule]
+xyz = "../biphenyl.xyz"
+basis = "cc-pvdz"
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "gpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "pi"
+pi_electrons = 12
+pi_normal_mode = "local"
+optimize_core = false
+
+[output]
+path = "biphenyl_active.json"
