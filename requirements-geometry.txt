@@ -1,0 +1,3 @@
+# Add to the CPU/GPU environment for automatic coordinates and geometry solvers.
+geometric>=1.1,<2
+Py-BOBYQA>=1.5,<2

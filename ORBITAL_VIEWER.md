@@ -1,89 +1,84 @@
-# 非直交軌道の表示
+# Displaying nonorthogonal orbitals
 
-`generate_orbitals.py` は `calc_molecule.py` が保存した結果JSONを読み込み、
-各非直交軌道をGaussian Cubeファイルとブラウザ用HTMLへ出力する。
-従来の固定係数の例は `examples/legacy_generate_cube.py` に移している。
-新しいプログラムでは分子や係数をソースコードへ書き込む必要はない。
-SCF・Full CI・軌道最適化の再実行やJAXの導入も不要。
+`generate_orbitals.py` reads result JSON saved by `calc_molecule.py` and exports each nonorthogonal orbital as a Gaussian Cube file and browser HTML.
+The legacy example with hard-coded coefficients is now `examples/legacy_generate_cube.py`.
+The new program does not require molecules or coefficients to be embedded in source code.
+It requires neither rerunning SCF, Full CI, or orbital optimization nor installing JAX.
 
-## 基本的な使い方
+## Basic usage
 
 ```bash
 python calc_molecule.py --xyz examples/h3_plus.xyz --charge 1 --output result.json
 python generate_orbitals.py result.json --output-dir orbitals
 ```
 
-生成された `orbitals/index.html` をブラウザで開く。
-軌道の選択、マウスでの回転・拡大、等値面値、不透明度の調整ができる。
-正の振幅は赤、負の振幅は青。入力値を変更後に「表示を更新」を押す。
-HTMLにはCubeデータを埋め込んでいるため、表示用のPythonサーバーは不要。
+Open the generated `orbitals/index.html` in a browser.
+You can select orbitals, rotate and zoom with the mouse, and adjust the isovalue and opacity.
+Positive amplitudes are red and negative amplitudes are blue. Click "Update view" after changing inputs.
+Cube data is embedded in the HTML, so no Python server is required for display.
 
-HTMLは既定で [3Dmol.js](https://3dmol.org/doc/GLViewer.html#addVolumetricData) を
-公式サイトから読み込むため、インターネット接続が必要。
-ローカルに保存したライブラリを使う場合は次のように指定する。
+By default the HTML loads [3Dmol.js](https://3dmol.org/doc/GLViewer.html#addVolumetricData) from its official website and requires an internet connection.
+To use a locally saved library, specify:
 
 ```bash
 python generate_orbitals.py result.json --viewer-js /path/to/3Dmol-min.js
 ```
 
-ライブラリを出力フォルダへコピーし、そのローカルファイルを参照する。
-オフラインではHTMLとライブラリを同じフォルダに置いて使う。
-HTMLを作らず、Cubeを外部の分子ビューアで表示する場合は `--no-html` を指定する。
+The library is copied into the output folder and referenced as a local file.
+For offline use, keep the HTML and library in the same folder.
+To omit HTML and display Cube files in an external molecular viewer, specify `--no-html`.
 
-## 軌道・格子の指定
+## Selecting orbitals and grids
 
 ```bash
-# 1番目と3番目の軌道のみ（番号は1始まり）
+# Export only the first and third orbitals (one-based indices)
 python generate_orbitals.py result.json --orbitals 1 3 --output-dir selected
 
-# 格子を細かくし、箱の余白を広げる
+# Use a finer grid and larger box margin
 python generate_orbitals.py result.json --grid 80 80 80 --margin 4 --isovalue 0.03
 
-# 各軌道を個別に規格化して表示する（直交化しない）
+# Normalize each orbital separately for display (without orthogonalizing)
 python generate_orbitals.py result.json --normalize
 ```
 
-既定は全軌道、64×64×64点、余白3 Bohr、等値面の絶対値0.04。
-格子箱は分子を囲む直方体で、座標と余白の単位はBohr。
-等値面は軌道振幅（Bohr^(-3/2)）を表し、電子密度ではない。
-同じ格子数でも分子が大きいと格子間隔が広くなる。
-既定の上限は200万格子点。必要なら `--max-grid-points` で変更する。
+Defaults are all orbitals, a 64×64×64 grid, a 3 Bohr margin, and an absolute isovalue of 0.04.
+The grid box is a rectangular volume enclosing the molecule; coordinates and margins are in Bohr.
+Isosurfaces represent orbital amplitudes (Bohr^(-3/2)), not electron density.
+With the same grid dimensions, larger molecules have wider grid spacing.
+The default limit is two million grid points; adjust it with `--max-grid-points` if needed.
 
-## 係数の扱い
+## Coefficient handling
 
-`phi_i(r) = sum_mu C[mu,i] chi_mu(r)` を計算する。
-既定では保存された係数の符号・大きさを変更せず、軌道を直交化しない。
-`--normalize` は各列を `sqrt(C_i.T @ S @ C_i)` で割るだけで、
-軌道形状・位相・非直交性を維持する。軌道の全体スケールには自由度があるため、
-同じ等値面値で軌道間の形状を比較したい場合に利用できる。
-スピン係数から多電子密度や占有数を計算するプログラムではない。
+The program evaluates `phi_i(r) = sum_mu C[mu,i] chi_mu(r)`.
+By default it preserves the signs and magnitudes of saved coefficients and does not orthogonalize orbitals.
+`--normalize` only divides each column by `sqrt(C_i.T @ S @ C_i)`, preserving orbital shape, phase, and nonorthogonality.
+Because the overall orbital scale is arbitrary, this option is useful when comparing shapes at a common isovalue.
+The program does not compute many-electron densities or occupations from spin coefficients.
 
-結果JSONに保存された分子、電荷、多重度、基底、座標単位からAOを再構成する。
-AOラベルの順序と重なり行列を照合し、不一致なら停止する。
-異なる基底・原子順序の係数を誤って描画しないための検査である。
-入力JSONは変更しない。同名の出力ファイルは上書きする。
+AOs are reconstructed from the molecule, charge, multiplicity, basis, and coordinate units in the result JSON.
+AO-label ordering and the overlap matrix are checked; mismatches stop processing.
+This prevents coefficients from a different basis or atom order from being displayed incorrectly.
+Input JSON is left unchanged; existing output files with the same names are overwritten.
 
-## 出力ファイル
+## Output files
 
-- `orbital_001.cube` 等：軌道番号ごとの符号付き振幅。
-- `molecule.xyz`：Angstrom単位の分子構造。
-- `index.html`：選択・回転できる軌道ビューア。
-- `manifest.json`：格子情報、出力軌道、元の軌道ノルム、係数の倍率、
-  表示に用いた軌道間重なり行列。
+- `orbital_001.cube`, etc.: signed amplitudes for each orbital index.
+- `molecule.xyz`: molecular geometry in Angstrom.
+- `index.html`: an orbital viewer with selection and rotation controls.
+- `manifest.json`: grid settings, exported orbitals, original orbital norms, coefficient scale factors, and the inter-orbital overlap matrix used for display.
 
-## 検証
+## Validation
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest test_generate_orbitals -v
 ```
 
-5テストで、PySCFの `cubegen.orbital` との格子値一致（Cube出力の丸め精度内）、
-選択軌道の順序、個別規格化、非直交性の保持、不正入力の検出、
-ローカルライブラリ指定を確認した。H3+の結果ではブラウザで等値面表示も確認。
+Five tests checked grid agreement with PySCF's `cubegen.orbital` within Cube-output rounding precision, selected-orbital ordering, individual normalization, preservation of nonorthogonality, invalid-input detection, and local-library selection.
+Isosurface display was also checked in a browser using an H3+ result.
 
-## 活性空間の結果
+## Active-space results
 
-活性SCGVB軌道を先に、続いて固定された非活性空間軌道を1本ずつ表示する。
-非活性軌道はHTMLの選択欄で「非活性・二重占有」と表示し、manifestにもroleを保存する。
-読み込み時に電子数、閉殻の直交規格化、活性・非活性間の直交性を検査する。
-旧full版JSONにも対応する。詳しくは [ACTIVE_SPACE.md](ACTIVE_SPACE.md) を参照。
+Active SCGVB orbitals are displayed first, followed by each frozen inactive-space orbital.
+Inactive orbitals are labeled "inactive, doubly occupied" in the HTML selector, and their roles are stored in the manifest.
+Loading checks electron counts, closed-shell orthonormality, and active/inactive orthogonality.
+Legacy full-space JSON is also supported. See [ACTIVE_SPACE.md](ACTIVE_SPACE.md) for details.

@@ -1,0 +1,20 @@
+[molecule]
+atom = "H 0 0 0; H 0 0 1.0"
+basis = "sto-3g"
+
+[calculation]
+energy_evaluation = "determinant"
+initial_guess = "hf"
+initial_perturbation = 0.02
+
+[geometry]
+method = "quasi-newton"
+coordinates = "auto"
+max_iterations = 50
+max_evaluations = 400
+difference_step = 0.001
+gradient_tolerance = 0.0003
+
+[output]
+path = "h2_geometry_quasi_newton.json"
+verbose = 1

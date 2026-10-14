@@ -1,37 +1,32 @@
-# JAX版
+# JAX backend
 
-`scgvb/energy/numpy_backend.py` のNumPy・複素ステップ微分版はそのまま残している。
-`scgvb/energy/jax_backend.py` はそのクラスを継承し、エネルギー評価と勾配を
-倍精度のJAX JIT・自動微分に置き換える。Augmented Lagrangian、停滞時の
-規格化エネルギーによる補助処理、収束判定は既存実装を共用する。
+The NumPy implementation with complex-step differentiation remains in `scgvb/energy/numpy_backend.py`.
+`scgvb/energy/jax_backend.py` subclasses it, replacing energy evaluation and gradients with double-precision JAX JIT compilation and automatic differentiation.
+The augmented Lagrangian method, normalized-energy fallback for stagnation, and convergence criteria are shared with the existing implementation.
 
 ```python
 from scgvb.energy.jax_backend import SCWF_Energy
 
-scwf = SCWF_Energy(mol, device='cpu')  # NVIDIA環境では 'gpu'
+scwf = SCWF_Energy(mol, device='cpu')  # Use 'gpu' on NVIDIA systems
 energy, C, Cs = scwf.augmentedLagrangian(C, Cs)
 ```
 
-従来版を選ぶ場合は `from scgvb.energy.numpy_backend import SCWF_Energy` を使用する。
-`calc_diatomic_mol.py` は `--backend numpy`（既定値）または `--backend jax` で
-切り替えられる。JAXの `--device` を省略するとJAXの既定デバイスを使用する。
+Use `from scgvb.energy.numpy_backend import SCWF_Energy` for the original backend.
+`calc_diatomic_mol.py` selects between `--backend numpy` (default) and `--backend jax`.
+Omitting JAX `--device` uses the default JAX device.
 
-## 実行範囲と精度
+## Execution scope and precision
 
-- モジュール読込時に `jax_enable_x64=True` を設定し、積分・係数をfloat64で扱う。
-- PySCFの積分生成・参照FCI、SciPyの最適化制御はCPU上で動く。
-- JAX版では、積分と置換データをインスタンス作成時にデバイスへ転送して保持する。
-  分子や積分を変更するときはインスタンスを作り直す。
-- エネルギー・勾配評価をJITコンパイルし、自動微分で全変数の勾配を計算する。
-  同じ点の目的関数と勾配は一度の評価を共有する。
-- SciPyとの間では係数と結果を転送する。最適化全体がGPU内で完結するわけではない。
-- 実数軌道用。複素ステップ入力の代わりに `target_gradient` / `rayleigh_gradient`
-  を使用する。物理的な複素軌道を扱う実装ではない。
-- JITは配列形状が変わると再コンパイルする。同じ形状の距離走査では再利用できる。
-- 既定の置換方式では配置ペアの保存量 `(N!)²` は変わらない。
-  行列式方式と固定閉殻の活性空間版については `ACTIVE_SPACE.md` を参照。
+- Module import sets `jax_enable_x64=True`; integrals and coefficients use float64.
+- PySCF integral generation and reference FCI, and SciPy optimizer control, run on the CPU.
+- The JAX backend transfers integrals and permutation data to the device when an instance is created and retains them there. Recreate the instance when the molecule or integrals change.
+- Energy and gradient evaluations are JIT-compiled, with automatic differentiation for all variables. Objective and gradient evaluations at the same point share a single calculation.
+- Coefficients and results are transferred between SciPy and JAX; the complete optimization does not run entirely on the GPU.
+- This backend is for real orbitals. Use `target_gradient` / `rayleigh_gradient` instead of complex-step inputs. Physical complex orbitals are not implemented.
+- JIT recompiles when array shapes change; a distance scan with unchanged shapes can reuse compiled functions.
+- The default permutation method still stores `(N!)²` configuration pairs. See `ACTIVE_SPACE.md` for determinant evaluation and active spaces with frozen closed shells.
 
-## 検証と計測
+## Validation and timing
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest \
@@ -41,27 +36,26 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest \
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m scgvb.benchmarks.jax --device cpu
 ```
 
-JAXテストはJAX未導入ならスキップする。既存版はJAXをimportしない。
-H₂一重項・三重項、HeH⁺、LiHで固定パラメータのエネルギーと勾配を比較する。
-ゼロの重なり因子、複数のスピン係数、キャッシュ更新も検証する。
-H₂・HeH⁺・LiHの最適化後のエネルギー・ノルムを独立な行列式展開で照合する。
+JAX tests are skipped if JAX is not installed. The original backend does not import JAX.
+Tests compare fixed-parameter energies and gradients for H₂ singlets and triplets, HeH⁺, and LiH.
+They also check zero overlap factors, multiple spin coefficients, and cache updates.
+Optimized energies and norms for H₂, HeH⁺, and LiH are compared with an independent determinant expansion.
 
-2026-09-18、Apple M4 CPU、Python 3.12.2、JAX 0.11.2で、現在のLiHスクリプトの
-10 Åと0.5〜2.5 Åの全21距離点が完了し、グラフ出力を確認した。
-10 ÅのJAXエネルギーは `-7.782107830840677 Eh`。
-演算順序が異なるため、最適化経路や局所解までのビット単位の一致は保証しない。
+On 2026-09-18, the current LiH script completed the 10 Å calculation and all 21 distance points from 0.5 to 2.5 Å on an Apple M4 CPU with Python 3.12.2 and JAX 0.11.2; plot output was checked.
+The JAX energy at 10 Å was `-7.782107830840677 Eh`.
+Different arithmetic ordering means that optimization trajectories and local solutions are not guaranteed to agree bit for bit.
 
-LiH / STO-3G / 1.6 Åのエネルギー＋勾配評価の実測例（20回平均）：
+Example timings for energy plus gradient evaluation in LiH / STO-3G / 1.6 Å (averages over 20 runs):
 
-| 評価 | 時間 |
+| Evaluation | Time |
 |---|---:|
-| JAX初回（コンパイル込み） | 0.163 s |
-| NumPy＋複素ステップ微分 | 12.368 ms |
-| JAX自動微分（コンパイル後） | 0.266 ms |
+| First JAX call, including compilation | 0.163 s |
+| NumPy plus complex-step differentiation | 12.368 ms |
+| JAX automatic differentiation after compilation | 0.266 ms |
 
-この評価部分では約46倍。全計算の速度比ではない。計測では同一点キャッシュを
-各測定前に解除し、ホストへの結果取得まで含めてGPUでも同期されるようにしている。
-NVIDIA GPU上での実測は、このMacでは行っていない。
+This evaluation is about 46× faster; that is not a speedup for the complete calculation.
+Measurements clear the same-point cache before every run and include host retrieval of results, ensuring synchronization on GPUs as well.
+NVIDIA GPU timings were not measured on this Mac.
 
 ## Bounded determinant spaces: stable expectation values
 

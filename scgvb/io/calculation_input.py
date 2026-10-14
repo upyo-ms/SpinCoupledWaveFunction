@@ -8,7 +8,7 @@ SECTIONS = {
                   charge=int, multiplicity=int, unit=str).items()},
     'calculation': {k: (k, t) for k, t in dict(backend=str, device=str,
                   energy_evaluation=str, determinant_size_profile=str, initial_guess=str, initial_json=str, seed=int, initial_perturbation=float,
-                  initial_spin_guess=str, initial_spin_overlap_cutoff=float).items()},
+                  initial_spin_guess=str, initial_spin_overlap_cutoff=float, allow_geometry_change=bool).items()},
     'active_space': dict(mode=('active_space', str), **{k: (k, t) for k, t in dict(
                   pi_electrons=int, pi_normal_mode=str, frozen_core=int,
                   inactive_mos=list, active_mos=list, optimize_core=bool,
@@ -19,6 +19,10 @@ SECTIONS = {
                   spin_overlap_cutoff=float, orbital_micro_iterations=int, joint_correction=bool,
                   joint_correction_start=int, orbital_overlap_cutoff=float).items()}),
     'output': dict(path=('output', str), verbose=('verbose', bool)),
+    'geometry': {k: ('geometry_' + k, t) for k, t in dict(
+                  method=str, coordinates=str, bonds=list, max_iterations=int, max_evaluations=int,
+                  difference_step=float, gradient_tolerance=float, energy_tolerance=float,
+                  step_tolerance=float, trust_radius=float, max_radius=float, final_radius=float).items()},
 }
 
 
@@ -47,7 +51,7 @@ def input_arguments(path):
                 valid = type(value) in (int, float) and math.isfinite(value)
             if kind is list:
                 valid = type(value) is list and len(value) > 0 and all(
-                    (type(i) is str and bool(i.strip())) if key == 'orbitals'
+                    (type(i) is str and bool(i.strip())) if key in ('orbitals', 'bonds')
                     else (type(i) is int and i >= 1) for i in value)
             if not valid or (kind is str and not value.strip()):
                 raise ValueError(f'Invalid value for {section}.{key} (expected {kind.__name__})')

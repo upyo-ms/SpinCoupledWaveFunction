@@ -51,9 +51,9 @@ def build(output):
         'calc_molecule.py','calc_diatomic_mol.py','generate_orbitals.py','build_hpc_bundle.py',
         'pyproject.toml','scgvb/io/orbital_viewer.html',
         'examples/legacy_generate_cube.py',
-        'README.md','INPUT_FILE.md','ACTIVE_SPACE.md','HPC_README.md','MOLECULE_INTERFACE.md',
+        'README.md','INPUT_FILE.md','ACTIVE_SPACE.md','HPC_README.md','MOLECULE_INTERFACE.md','GEOMETRY_OPTIMIZATION.md',
         'JAX_BACKEND.md','ORBITAL_VIEWER.md','PHYSICS_FIX.md',
-        'requirements-base.txt','requirements-cpu.txt','requirements-gpu-cuda13.txt',
+        'requirements-base.txt','requirements-cpu.txt','requirements-gpu-cuda13.txt','requirements-geometry.txt',
     ]
     for pattern in ('scgvb/**/*.py','scgvb/**/*.md','tools/*.py','hpc/*.py','hpc/*.sh',
                     'examples/*.xyz','examples/inputs/*.toml'):

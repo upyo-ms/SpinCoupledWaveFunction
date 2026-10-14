@@ -1,23 +1,29 @@
-"""Transfer a saved SCGVB state between AO bases at an unchanged geometry."""
+"""Project a saved SCGVB state between AO bases and, optionally, geometries."""
 import json
 from pathlib import Path
 from copy import deepcopy
+from collections.abc import Mapping
 import numpy as np
 from pyscf import gto
 from scgvb.spin.primitive import generate_branch_diagrams
 
 
-def restart_orbitals(mol, space, path):
-    path = Path(path).resolve()
-    data = json.loads(path.read_text())
+def restart_orbitals(mol, space, path, *, allow_geometry_change=False):
+    if isinstance(path, Mapping):
+        data, source = path, 'in_memory'
+    else:
+        path = Path(path).resolve()
+        data, source = json.loads(path.read_text()), str(path)
     try:
         spec = data['molecule']
         old = gto.M(atom=spec['atoms'], basis=spec['basis'], unit=spec['coordinate_unit'],
                     charge=spec['charge'], spin=spec['multiplicity']-1, verbose=0)
         if (old.natm != mol.natm or old.charge != mol.charge or old.spin != mol.spin
-                or [old.atom_symbol(i) for i in range(old.natm)] != [mol.atom_symbol(i) for i in range(mol.natm)]
-                or not np.allclose(old.atom_coords(), mol.atom_coords(), atol=1e-7, rtol=0)):
-            raise ValueError('Restart requires the same atoms, order, geometry, charge and multiplicity')
+                or [old.atom_symbol(i) for i in range(old.natm)] != [mol.atom_symbol(i) for i in range(mol.natm)]):
+            raise ValueError('Restart requires the same atoms, order, charge and multiplicity')
+        geometry_changed = not np.allclose(old.atom_coords(), mol.atom_coords(), atol=1e-7, rtol=0)
+        if geometry_changed and not allow_geometry_change:
+            raise ValueError('Restart geometry differs; set allow_geometry_change=True to project the state')
         ne = mol.nelectron if space is None else space.electrons
         diagrams = generate_branch_diagrams((ne+mol.spin)//2, (ne-mol.spin)//2)
         if not np.array_equal(diagrams, data['spin_branch_diagrams']):
@@ -46,7 +52,21 @@ def restart_orbitals(mol, space, path):
             if len(w) and w.min() < 1e-10:
                 raise ValueError('Restart projection loses orbital rank in the target basis')
             return np.einsum('ia,ak,k,bk->ib', a, v, 1/np.sqrt(w), v)
-        if space is not None:
+        if space is not None and geometry_changed:
+            # A geometry-dependent selected/frozen space defines the target
+            # energy surface. Transfer only the guess, not the old subspace.
+            space = deepcopy(space)
+            if not all(np.isfinite(a).all() for a in (space.basis, s, c)):
+                raise FloatingPointError('Non-finite input to restart active-space projection')
+            # Some macOS BLAS builds set invalid/overflow flags for otherwise
+            # valid matmul results. Explicit contractions avoid that path without
+            # suppressing warnings or changing the AO-metric projection.
+            projector = np.einsum('ia,ij->aj', space.basis, s)
+            c = np.einsum('ai,ij->aj', projector, c)
+            if not np.isfinite(c).all():
+                raise FloatingPointError('Non-finite result from restart active-space projection')
+            space.metadata.update(restart_source=source, initial_space_from_restart=False)
+        elif space is not None:
             space = deepcopy(space)
             core = np.einsum('ij,ja->ia', transform, core_old)
             # Preserve the F subspace independently of the relaxable I subspace.
@@ -75,9 +95,11 @@ def restart_orbitals(mol, space, path):
                 basis = np.column_stack((basis, extra))
             c = np.einsum('ia,ij,jb->ab', basis, s, c)
             space.inactive, space.basis = core, basis
-            space.metadata.update(restart_source=str(path), initial_space_from_restart=True)
-        info = dict(method='json', source=str(path), source_basis=spec['basis'],
-                    projection='AO overlap least squares', perturbation=0.)
+            space.metadata.update(restart_source=source, initial_space_from_restart=True)
+        info = dict(method='json', source=source, source_basis=spec['basis'],
+                    projection='AO overlap least squares', perturbation=0.,
+                    geometry_changed=geometry_changed,
+                    target_space_retained=bool(space is not None and geometry_changed))
         return space, c, cs, info
     except (KeyError, TypeError, IndexError) as exc:
         raise ValueError(f'Incomplete or invalid restart JSON: {exc}') from exc

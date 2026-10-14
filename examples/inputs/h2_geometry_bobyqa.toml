@@ -1,0 +1,20 @@
+[molecule]
+atom = "H 0 0 0; H 0 0 1.0"
+basis = "sto-3g"
+
+[calculation]
+energy_evaluation = "determinant"
+initial_guess = "hf"
+initial_perturbation = 0.02
+
+[geometry]
+method = "bobyqa"
+coordinates = "auto"
+max_evaluations = 200
+trust_radius = 0.05
+max_radius = 0.2
+final_radius = 0.0001
+
+[output]
+path = "h2_geometry_bobyqa.json"
+verbose = 1

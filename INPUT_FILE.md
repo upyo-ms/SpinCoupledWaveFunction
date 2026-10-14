@@ -1,25 +1,25 @@
-# 計算入力ファイル
+# Calculation input files
 
-`calc_molecule.py` はTOML形式の入力に対応する。コメントは `#`、真偽値は
-`true` / `false`、文字列は引用符で囲む。既存のコマンドライン指定も使用できる。
+`calc_molecule.py` supports TOML input. Comments start with `#`, booleans are `true` / `false`, and strings are quoted.
+Existing command-line options remain available.
 
-初期値・最適化の説明は次の箇所にあります。
+Initial guesses and optimization are described in:
 
-- [同時最適化と交互最適化](#同時最適化と交互最適化)：BFGS、波動関数計量、一軌道求解、スピン更新間隔、ノルム保護。
-- [スピン初期値と同時補正の開始時期](#スピン初期値と同時補正の開始時期を独立に指定する)：独立した初期スピン求解、再開時の扱い、補正開始番号。
-- [HPCでの実験用同時補正](HPC_README.md#保存状態から同時補正だけを比較する)：残差方向の追加とスピン応答付き補正の診断API。
+- [Simultaneous and alternating optimization](#simultaneous-and-alternating-optimization): BFGS, wavefunction metrics, single-orbital solves, spin-update intervals, and norm protection.
+- [Independent spin initialization and joint-correction start](#independent-spin-initialization-and-joint-correction-start): initial spin solving, restart behavior, and correction start indices.
+- [Experimental joint corrections on HPC](HPC_README.md#comparing-joint-corrections-from-a-saved-state): diagnostic APIs for residual-direction additions and spin-response corrections.
 
 ```bash
 python calc_molecule.py examples/inputs/allyl.toml
-# 同じ意味
+# Equivalent command
 python calc_molecule.py --input examples/inputs/allyl.toml
-# 活性空間と計算サイズだけ確認（HFによる選択は実行する）
+# Check only the active space and calculation size (HF selection still runs)
 python calc_molecule.py examples/inputs/allyl.toml --check
-# 入力は共通にして、実行環境と出力先だけ変更
+# Keep the same input while changing device and output destination
 python calc_molecule.py examples/inputs/allyl.toml --device gpu --output allyl_gpu.json
 ```
 
-## アリルラジカルの入力例
+## Allyl-radical example
 
 ```toml
 [molecule]
@@ -43,11 +43,11 @@ optimize_core = true
 path = "allyl_active.json"
 ```
 
-この例は `examples/inputs/allyl.toml` にある。LiHのcore緩和は `lih.toml`、
-非平面ビフェニルの12π・固定core・GPU計算は `biphenyl.toml` を参照。
+This example is `examples/inputs/allyl.toml`.
+See `lih.toml` for LiH core relaxation and `biphenyl.toml` for a nonplanar 12-pi-electron biphenyl calculation with frozen core on a GPU.
 
-XYZを使わず、入力内に座標を書く場合は `[molecule]` の `xyz` の代わりに次を指定する。
-両方を同時に指定することはできない。
+To put coordinates directly in the input instead of using XYZ, replace `[molecule] xyz` with the following.
+Do not specify both.
 
 ```toml
 atom = """
@@ -57,22 +57,28 @@ H  0.0 0.0 1.6
 unit = "Angstrom"
 ```
 
-## 設定項目
+## Settings
 
-省略した項目は従来のCLI既定値を使用する。キー名はアンダースコアを使う。
+Omitted settings use existing CLI defaults. Key names use underscores.
 
-| セクション | 使用可能なキー |
+| Section | Available keys |
 |---|---|
-| `molecule` | `atom` または `xyz`（必須）、`basis`、`charge`、`multiplicity`、`unit` |
-| `calculation` | `backend`、`device`、`energy_evaluation`、`initial_guess`、`initial_json`、`seed`、`initial_perturbation`、`initial_spin_guess`、`initial_spin_overlap_cutoff` |
-| `active_space` | `mode`、`pi_electrons`、`pi_normal_mode`、`frozen_core`、`inactive_mos`、`active_mos`、`optimize_core` |
-| `optimizer` | `method`、`spin_overlap_cutoff`、`orbital_overlap_cutoff`、`orbital_micro_iterations`、`orbital_update`、`spin_solver`、`joint_correction`、`joint_correction_start`、`epsilon`、`max_outer_iterations`、`max_inner_iterations`、`core_max_iterations`、`core_gradient_tolerance`、`max_permutation_pairs` |
-| `output` | `path`、`verbose` |
+| `molecule` | `atom` or `xyz` (required), `basis`, `charge`, `multiplicity`, `unit` |
+| `calculation` | `backend`, `device`, `energy_evaluation`, `initial_guess`, `initial_json`, `allow_geometry_change`, `seed`, `initial_perturbation`, `initial_spin_guess`, `initial_spin_overlap_cutoff`, `determinant_size_profile` |
+| `active_space` | `mode`, `pi_electrons`, `pi_normal_mode`, `frozen_core`, `inactive_mos`, `active_mos`, `optimize_core`, `orbitals`, `ao_electrons`, `ao_threshold` |
+| `optimizer` | `method`, `spin_overlap_cutoff`, `orbital_overlap_cutoff`, `orbital_micro_iterations`, `orbital_update`, `spin_solver`, `joint_correction`, `joint_correction_start`, `epsilon`, `max_outer_iterations`, `max_inner_iterations`, `core_max_iterations`, `core_gradient_tolerance`, `max_permutation_pairs` |
+| `output` | `path`, `verbose` |
+| `geometry` | `method`, `coordinates`, `bonds`, `max_iterations`, `max_evaluations`, `difference_step`, `gradient_tolerance`, `energy_tolerance`, `step_tolerance`, `trust_radius`, `max_radius`, `final_radius` |
 
-`active_space.mode` は `full` / `pi` / `benzene-pi`。
-`inactive_mos = [1]`、`active_mos = [2, 3]` のようにMO番号はCLIと同じ **1始まり**。
-計算条件の意味と組合せ制約は [ACTIVE_SPACE.md](ACTIVE_SPACE.md) と同じ。
-`optimize_core = true` は選択した非活性軌道を二重占有のまま緩和する。
+`calculation.allow_geometry_change = true` allows orbital projection from `initial_json` at a different geometry.
+Select geometry optimization with `[geometry] method = "bobyqa"` or `"quasi-newton"`.
+Omitting the method or using `"none"` selects a single-point calculation.
+See [Geometry optimization](GEOMETRY_OPTIMIZATION.md) for units, internal coordinates, and convergence criteria.
+
+`active_space.mode` accepts `full` / `pi` / `benzene-pi` / `ao`.
+MO indices are **one-based**, as in the CLI: `inactive_mos = [1]`, `active_mos = [2, 3]`.
+Settings and combination constraints match [ACTIVE_SPACE.md](ACTIVE_SPACE.md).
+`optimize_core = true` relaxes selected inactive orbitals while retaining double occupation.
 
 ```toml
 [optimizer]
@@ -82,42 +88,39 @@ core_max_iterations = 50
 core_gradient_tolerance = 1e-6
 ```
 
-## 同時最適化と交互最適化
+## Simultaneous and alternating optimization
 
-省略時は従来の同時最適化 (`simultaneous`) を使う。交互最適化は明示的に選ぶ。
+Omitting the method uses the existing simultaneous optimizer (`simultaneous`). Alternating optimization must be selected explicitly.
 
 ```toml
 [optimizer]
-method = "alternating" # "simultaneous" は従来の方法
+method = "alternating" # "simultaneous" selects the original method
 spin_overlap_cutoff = 1e-10
 max_outer_iterations = 50
 max_inner_iterations = 1000
 ```
 
-CLIは `--optimization-method alternating --spin-overlap-cutoff 1e-10`、
-Python APIは `calculate(..., optimization_method='alternating')`。
-既存入力への追記や明示指定がなければ計算方法は変わらず、自動切替も行わない。
-`--check` に方式と閾値を表示し、結果JSONの `calculation.optimization_method` に保存する。
-Fe(CO)5用の入力例は `examples/inputs/fe_co5_alternating.toml`。
+Use `--optimization-method alternating --spin-overlap-cutoff 1e-10` in the CLI, or `calculate(..., optimization_method='alternating')` in Python.
+Existing inputs retain their method unless explicitly modified; there is no automatic switching.
+`--check` reports method and cutoff, and result JSON stores `calculation.optimization_method`.
+An Fe(CO)5 input is provided at `examples/inputs/fe_co5_alternating.toml`.
 
-交互最適化は、固定した非直交軌道でスピン関数間のHamiltonianと重なり行列を作り、
-一般化固有値問題でスピン係数を解く。その係数を固定して軌道をBFGSで更新し、
-スピン係数を再び解く。軌道には個別の規格化だけを使い、相互直交性を課さない。
-行列式係数はSCGVB軌道とスピン係数から生成し、独立なFCI変数にしない。
-`max_outer_iterations` は交互更新の回数、`max_inner_iterations` は各軌道更新の採用ステップ数の上限。
-`optimize_core=true` の場合も各閉殻緩和ステップの内側で指定方式を使う。
+Alternating optimization constructs the spin-function Hamiltonian and overlap at fixed nonorthogonal orbitals, then solves a generalized eigenproblem for spin coefficients.
+It fixes those coefficients for BFGS orbital updates, then resolves spin coefficients.
+Only individual orbital normalization is imposed, not mutual orthogonality.
+Determinant coefficients are derived from SCGVB orbitals and spin coefficients, not independent FCI variables.
+`max_outer_iterations` counts alternating cycles; `max_inner_iterations` limits accepted steps in each orbital update.
+With `optimize_core=true`, the selected method is also used inside every closed-shell relaxation step.
 
-`orbital_micro_iterations = 5` を追加すると、各サイクルの軌道更新を最大5採用ステップずつに
-区切り、区切るたびにスピン係数を解き直す。スピン係数が変わるためBFGSの履歴はリセットする。
-`max_inner_iterations` はサイクル内の全区間を合わせた採用ステップ数の上限であり、
-ノルム下限もサイクル内で共通にする。区切るたびに下限を下げることはしない。
-更新できずスピン係数も変わらない場合は、そのサイクルの更新を終了して全勾配を確認する。
-スピン更新の回数、採用割合、残差は結果JSONの `micro_history` と詳細ログに保存する。
-省略時または `0` は従来の長い軌道更新を使う。この設定は `alternating` のみで使用できる。
-CLIは `--orbital-micro-iterations 5`、Python APIは `orbital_micro_iterations=5`。
+Adding `orbital_micro_iterations = 5` splits each cycle's orbital updates into blocks of at most five accepted steps, resolving spin coefficients after every block.
+BFGS history resets when spin coefficients change.
+`max_inner_iterations` limits accepted steps across all blocks of the cycle; the norm floor is shared across that cycle and is not reduced at block boundaries.
+If neither orbitals nor spin coefficients can change, the cycle stops updating and checks the full gradient.
+Spin-update counts, acceptance fractions, and residuals are saved in result JSON `micro_history` and detailed logs.
+Omission or `0` retains the original long orbital block. This option applies only to `alternating`.
+Use `--orbital-micro-iterations 5` in the CLI or `orbital_micro_iterations=5` in Python.
 
-交互最適化には次の任意オプションもある。既定値は従来どおり
-`orbital_update = "bfgs"`、`spin_solver = "canonical"`。
+Alternating optimization also provides these optional choices. Defaults remain `orbital_update = "bfgs"` and `spin_solver = "canonical"`.
 
 ```toml
 [optimizer]
@@ -127,38 +130,35 @@ orbital_update = "wavefunction"
 spin_solver = "projected"
 ```
 
-`wavefunction` は、規格化した多電子波動関数の微分から軌道計量を構成し、
-各軌道ブロックの初期BFGS逆行列を前処理する。相対1e-8のダンピングは探索方向にのみ
-使い、物理エネルギーや軌道の相互重なりを変更しない。1ステップの規格化波動関数の
-変化は `sqrt(1 - |overlap|²) <= 0.05` とし、従来の軌道ステップ上限0.1、
-エネルギー下降条件、ノルム下限も適用する。計量はスピン更新後の各ブロックで再構成する。
+`wavefunction` constructs an orbital metric from derivatives of the normalized many-electron wavefunction and preconditions the initial BFGS inverse Hessian for each orbital block.
+Relative damping 1e-8 affects only search directions, not physical energies or mutual orbital overlaps.
+Each normalized-wavefunction step must satisfy `sqrt(1 - |overlap|²) <= 0.05`, along with the existing orbital-step limit 0.1, energy-descent condition, and norm floor.
+The metric is rebuilt for each block after spin updates.
 
-`projected` は、重なり行列の保持方向と現在の状態から実際の行列式展開を作り、
-その波動関数の重なりで直交化する。基準エネルギーを引いたハミルトニアンをこの小空間で
-評価し、大きい元の行列を構成した後の差し引きによる精度損失を減らす。
-純粋なスピン固有関数の基底順序、SCGVBの変分空間、全物理勾配による収束条件は同じ。
+`projected` constructs actual determinant expansions from retained overlap directions and the current state, then orthogonalizes with their wavefunction overlap.
+It evaluates the reference-energy-centered Hamiltonian directly in this small space, reducing precision loss from subtracting large matrices after construction.
+Spin-eigenfunction basis order, the SCGVB variational space, and convergence based on the full physical gradient are unchanged.
 
-どちらも `energy_evaluation = "determinant"` が必要。
-大きい系（軌道変数が36を超える系）の `wavefunction` 更新はJAXバックエンドを使う。
-CLIは `--orbital-update wavefunction --spin-solver projected`、Python APIも同名の引数。
-診断ログには軌道試行の棄却理由（ノルム、非有限値、エネルギー、波動関数変化）も記録する。
+Both choices require `energy_evaluation = "determinant"`.
+For large systems with more than 36 orbital variables, `wavefunction` updates use the JAX backend.
+CLI options are `--orbital-update wavefunction --spin-solver projected`; Python arguments use the same names with underscores.
+Diagnostics also record orbital-trial rejection reasons: norm, nonfinite values, energy, or wavefunction change.
 
-`orbital_update = "single_orbital"` は、他の軌道とスピン係数を固定し、
-一軌道の係数に線形なSCGVB波動関数のRayleigh商を一般化固有値問題で解く。
-重なりはAO重なりではなく、残りの軌道とスピン係数を含む多電子波動関数の重なり。
-`orbital_overlap_cutoff`（既定1e-10）で数値的な保持方向を選び、現在の状態も
-一つの方向として必ず含める。実際の行列式ベクトルの計量で直交化し、H−Eを投影する。
-行列式係数は軌道とスピン係数から導出し、独立な変分変数にはしない。
+`orbital_update = "single_orbital"` fixes other orbitals and spin coefficients and solves a generalized eigenproblem for the Rayleigh quotient of the SCGVB wavefunction, which is linear in one orbital's coefficients.
+Its overlap is the many-electron wavefunction overlap including other orbitals and spin coefficients, not the AO overlap.
+`orbital_overlap_cutoff` (default 1e-10) selects numerically retained directions, always including the current state as one direction.
+The actual determinant-vector metric is used for orthogonalization and projection of H−E.
+Determinant coefficients are derived from orbitals and spin coefficients rather than optimized independently.
 
-固有値解は更新候補であり、採用には元の物理エネルギーの厳密な下降、サイクル共通の
-ノルム下限、S計量での軌道ステップ上限0.1、規格化波動関数の距離上限0.05を要求する。
-必要なら候補との混合割合を半分ずつ縮める。非直交軌道を相互に直交化する処理はない。
-既存の全物理勾配1e-6と規格化誤差による収束条件を維持する。
+The eigenvector solution is a candidate. Acceptance requires strict decrease of the original physical energy, the cycle-shared norm floor, an S-metric orbital-step limit of 0.1, and a normalized-wavefunction distance limit of 0.05.
+If needed, the mixing fraction toward the candidate is repeatedly halved.
+Nonorthogonal orbitals are never mutually orthogonalized.
+Existing convergence criteria based on the full physical gradient 1e-6 and normalization error remain unchanged.
 
-この方式では `max_inner_iterations` はサイクル内の一軌道固有値解の試行回数の上限で、
-`orbital_iterations` はそのうち採用した更新の数。試行数、候補と採用割合、棄却理由、
-行列構築・固有値解の時間は `orbital_geometry` に保存する。軌道番号の巡回は
-スピン更新やサイクルをまたいで継続する。12軌道を一巡してスピンを更新する例：
+For this method, `max_inner_iterations` limits attempted single-orbital eigensolves per cycle; `orbital_iterations` counts accepted updates.
+Attempt counts, candidates, acceptance fractions, rejection reasons, and matrix-construction/eigensolve timings are saved in `orbital_geometry`.
+Orbital-index cycling continues across spin updates and cycles.
+Example settings to update all 12 orbitals before a spin solve:
 
 ```toml
 [optimizer]
@@ -171,117 +171,105 @@ max_inner_iterations = 12
 max_outer_iterations = 3
 ```
 
-`single_orbital` はNumPy/JAXとも `energy_evaluation = "determinant"` が必要。
-一軌道分の派生行列式ベクトルだけを構成し、全軌道分を同時に保持しない。
-保持ランクが変わってもGPUを再コンパイルしないよう投影基底幅を固定し、ゼロ方向を
-物理計量で除外する。既定の同時最適化、BFGS、波動関数計量BFGSは引き続き選択可能。
+`single_orbital` requires `energy_evaluation = "determinant"` with both NumPy and JAX.
+It constructs derived determinant vectors for one orbital at a time, not all orbitals simultaneously.
+Projection-basis width remains fixed to avoid GPU recompilation when the retained rank changes; zero directions are removed in the physical metric.
+The existing simultaneous optimizer, BFGS, and wavefunction-metric BFGS remain available.
 
-`spin_overlap_cutoff` はスピン重なり行列の最大固有値に対する相対閾値。
-閾値以下の方向を除くため、結果が閾値に依存する可能性がある。
-この固有値閾値は波動関数ノルムの保護下限には使わない。
-各交互更新サイクルの開始状態で、軌道を個別に規格化した波動関数ノルムを計算し、
-その半分をスピン・軌道更新に共通の保護下限とする。次のサイクルでは採用状態から再計算する。
-軌道更新はS計量をEuclidean座標に変換し、各軌道のノルムだけを固定する。
-各採用ステップでの軌道変化はS計量ノルムで最大0.1に制限し、
-Armijo backtrackingで物理エネルギーの低下とノルム下限を確認する。
-下限を割る試行は刻み幅を半減して再試行する。拒否点に勾配ゼロを返す処理は使わず、
-無効な開始点はエラーにする。更新不能の場合も勾配が残る状態を収束扱いしない。
-軌道更新で保持空間が変わり、スピン係数の解が更新前の状態より高いエネルギーになる場合は、
-更新前の有効な状態を一つの方向として解く空間に追加する。
-除外した全固有方向を復活させず、元の状態との変分的な比較を保つ。
-スピン更新でも同じ下限と物理エネルギーの非増加を確認し、必要なら更新前の係数との間で
-backtrackingする。採用可能な更新がなければ元の係数を保持し、全勾配による判定を続ける。
-最終的には、除外方向も含めた全物理勾配が従来と同じ `1e-6` 以下、
-波動関数ノルムの誤差が `epsilon` 未満であることを確認する。
-エネルギーの停滞だけでは収束扱いにしない。
+`spin_overlap_cutoff` is relative to the largest eigenvalue of the spin-overlap matrix.
+Directions at or below the cutoff are excluded, so results may depend on the cutoff.
+This eigenvalue threshold is not used as the wavefunction-norm floor.
+At the start of each alternating cycle, the norm with individually normalized orbitals is computed; half of it becomes the common protection floor for spin and orbital updates.
+The next cycle recomputes the floor from its accepted starting state.
+Orbital updates convert the S metric to Euclidean coordinates and constrain only individual orbital norms.
+Each accepted orbital change is limited to S-metric norm 0.1, with Armijo backtracking checking physical energy decrease and the norm floor.
+Trials below the floor halve the step and retry. Rejected points are not assigned zero gradients; invalid starting points are errors.
+Failure to update does not count as convergence while a gradient remains.
+If orbital updates change the retained space and the spin solution lies above the incoming state, that valid incoming state is added as one direction to the solve space.
+This preserves a variational comparison with the incoming state without restoring every discarded eigendirection.
+Spin updates check the same floor and nonincreasing physical energy, backtracking toward incoming coefficients when necessary.
+If no update is acceptable, incoming coefficients are retained and full-gradient checks continue.
+Final convergence requires the full physical gradient, including discarded directions, to be at most the existing `1e-6` and wavefunction-norm error below `epsilon`.
+Energy stagnation alone is not convergence.
 
-結果JSONの `alternating_optimization` に更新履歴、重なり固有値、保持したランク、
-閾値と勾配を保存する。`spin_incoming_preserved` は更新前の状態を追加したか、
-`spin_subspace_dimension` は追加後に実際に解いた空間の次元を示す。
-`cycle_reference_norm` と `cycle_norm_floor` は両更新に共通のノルム保護を示す。
-`orbital_max_accepted_step`、`orbital_rejected_trials`、`spin_step_fraction` に
-更新幅とbacktrackingの結果を記録する。軌道状態コードは0=勾配許容値、
-1=反復上限、2=下降ステップなし、3=ノルム保護によるステップ拒否を含む停止。
-これは内側ブロックの状態であり、計算全体の収束には全勾配の判定が必要。
-`verbose=2` の診断には `orbital_progress` を保存し、内側更新の進行も確認できる。
-失敗時の診断snapshotには、最後の軌道更新後の状態を保存する。
-閉殻緩和ありの場合は最終内側solveの履歴であり、
-全solveの履歴が必要な場合は `output.verbose=2` の診断データも保存する。
-NumPy/JAXの両backendと両エネルギー評価器に対応する。JAX determinant版は、
-固定軌道の積分と小行列式を再利用し、スピン状態を一つずつ処理して大きな中間配列を避ける。
-小さいスピン行列の固有値問題とBFGS軌道更新はCPUで実行する。
+Result JSON `alternating_optimization` records update history, overlap eigenvalues, retained rank, cutoffs, and gradients.
+`spin_incoming_preserved` indicates whether the incoming state was added; `spin_subspace_dimension` is the dimension actually solved afterward.
+`cycle_reference_norm` and `cycle_norm_floor` document common norm protection for both updates.
+`orbital_max_accepted_step`, `orbital_rejected_trials`, and `spin_step_fraction` record update sizes and backtracking outcomes.
+Orbital status codes are 0=gradient tolerance reached, 1=iteration limit, 2=no descent step, and 3=stop involving norm-protection rejection.
+These describe the inner block, not complete-calculation convergence, which requires a full-gradient check.
+`verbose=2` saves `orbital_progress` for inspecting inner updates.
+Failure snapshots contain the state after the latest orbital update.
+With closed-shell relaxation, the JSON history covers the final inner solve; save `output.verbose=2` diagnostics for histories of all solves.
+Both NumPy/JAX and both energy evaluators are supported.
+JAX determinant evaluation reuses fixed-orbital integrals and minors and processes spin states individually to avoid large intermediates.
+Small spin eigensolves and BFGS orbital updates run on the CPU.
 
-## パス・優先順位・出力
+## Paths, precedence, and output
 
-- 入力内のXYZと出力パスは、**入力ファイルの置かれたディレクトリが基準**。
-- `output.path` を省略すると入力と同じ場所の同名 `.json` に保存する。
-- 明示したCLIオプションが入力ファイルより優先する。CLIのパスは実行ディレクトリが基準。
-- `--no-optimize-core` / `--no-verbose` で入力の `true` を無効化できる。
-- 未知のセクション、未知のキー、型の不一致、不正な選択肢はエラーにする。
-- JSONには入力ファイルの絶対パスと内容を `input_file` に保存する。
-- TOMLはPython 3.11以降の標準ライブラリで読み込む。以前のPythonには
-  `requirements-base.txt` の条件付き依存 `tomli` を使用する。
+- Input-file XYZ and output paths are relative to the **directory containing the input file**.
+- Omitting `output.path` writes a same-stem `.json` beside the input.
+- Explicit CLI options override input settings. CLI paths are relative to the current working directory.
+- `--no-optimize-core` / `--no-verbose` disable input values of `true`.
+- Unknown sections or keys, incorrect types, and invalid choices are errors.
+- JSON `input_file` stores the absolute input path and contents.
+- Python 3.11 and later use standard-library TOML parsing; earlier Python uses the conditional `tomli` dependency in `requirements-base.txt`.
 
-この入力方式は単一構造計算の `calc_molecule.py` が対象。
-`calc_diatomic_mol.py` の距離走査設定は引き続きスクリプト内で編集する。
+This input format applies to `calc_molecule.py` for single-point and explicitly requested geometry-optimization calculations.
+Distance-scan settings for `calc_diatomic_mol.py` remain editable in `scgvb/cli/diatomic.py`.
 
-## 原子電荷の出力
+## Atomic-charge output
 
-計算終了時にMulliken・Löwdin・meta-Löwdin電荷とスピン分布を自動出力し、
-JSONの `population_analysis.methods` に方式別に保存する。入力ファイルへの設定追加は不要。
-既存JSONの後処理は [MOLECULE_INTERFACE.md](MOLECULE_INTERFACE.md) を参照。
+After calculation, Mulliken, Löwdin, and meta-Löwdin charges and spin populations are displayed automatically and saved by method in JSON `population_analysis.methods`.
+No additional input settings are required. See [MOLECULE_INTERFACE.md](MOLECULE_INTERFACE.md) for postprocessing existing JSON.
 
-## 原子軌道からのactive/inactive指定
+## Selecting active/inactive spaces from atomic orbitals
 
-`mode = "ao"` で、XYZの **1始まりの原子番号**、MINAO参照軌道名、役割を
-空白で区切った行を `orbitals` に指定する。同一原子の複数軌道を1行で指定できる。
+With `mode = "ao"`, specify whitespace-separated rows in `orbitals` containing **one-based atom indices** from XYZ, MINAO reference-orbital names, and a role.
+Multiple orbitals on the same atom can share one row.
 
 ```toml
 [active_space]
 mode = "ao"
 orbitals = [
-    "1 2px 2py 2pz A", # 原子1の3つのp軌道をactiveの目標にする
-    "1 1s F",         # 常に固定する二重占有空間
-    "2 1s I",         # 二重占有空間（optimize_core=trueなら緩和可能）
+    "1 2px 2py 2pz A", # Use atom 1's three p orbitals as active-space targets
+    "1 1s F",         # Permanently frozen doubly occupied space
+    "2 1s I",         # Doubly occupied space, relaxable with optimize_core=true
 ]
 ao_threshold = 0.2
-# ao_electrons = 6    # 選択された活性電子数の検証。強制変更ではない。
+# ao_electrons = 6    # Check the selected active-electron count; do not force it
 optimize_core = true
 ```
 
-これは書式例であり、軌道名と電子数は対象分子に合わせる。
-実行可能なアリル入力は `examples/inputs/allyl_ao.toml`。
+This illustrates syntax; adapt orbital names and electron counts to the molecule. A runnable allyl input is `examples/inputs/allyl_ao.toml`.
 
-- `A`: active空間を選ぶ参照AO。
-- `I`: 二重占有のinactive空間を選ぶ参照AO。`optimize_core=false`なら固定。
-- `F`: 二重占有のfrozen空間を選ぶ参照AO。`optimize_core=true`でも固定。
-- `A`の指定がある場合、未選択の二重占有HF軌道は `I` と同じ扱いになり、
-  未選択の空軌道はexternalになる。`A`がない場合、`I/F`以外のHF軌道を全てactiveにする。
-- 単占有HF軌道は全てactiveに含まれる必要がある。除外する指定はエラー。
+- `A`: reference AOs selecting the active space.
+- `I`: reference AOs selecting doubly occupied inactive space, frozen when `optimize_core=false`.
+- `F`: reference AOs selecting doubly occupied frozen space, fixed even with `optimize_core=true`.
+- If `A` is specified, unselected doubly occupied HF orbitals are treated like `I` and unselected virtual orbitals become external. Without `A`, all HF orbitals outside `I/F` become active.
+- All singly occupied HF orbitals must be active; excluding them is an error.
 
-AOそのものを占有させるのではなく、MINAO参照AOへの射影の固有値が
-`ao_threshold`（0より大きく1より小さい値、既定0.2）以上のHF軌道の組合せを選ぶ。
-`F`、`I`の順に二重占有空間から選び、残る空間で`A`を占有数ごとに選ぶ。
-`I/F`の空軌道成分は選択しない。指定AO数と選択MO数は必ずしも同じにならない。
-異なる役割が同じ選択空間を要求する場合は、射影の重なりを検出して終了する。
-選択の固有値・AO指定・電子数・固定軌道数はJSONのactive-spaceメタデータに保存する。
+The specified AOs are not occupied directly. Instead, combinations of HF orbitals are selected by projection onto MINAO reference AOs, retaining eigenvalues at least `ao_threshold` (strictly between 0 and 1; default 0.2).
+`F`, then `I`, are selected from the doubly occupied space; `A` is selected by occupation sector from the remainder.
+Virtual components of `I/F` are not selected. The number of requested AOs need not equal the number of selected MOs.
+Overlapping projected spaces requested by different roles are detected and stop processing.
+Selection eigenvalues, AO requests, electron counts, and frozen-orbital counts are saved in active-space JSON metadata.
 
-`2pz`は **入力のCartesian z軸** の向き。分子の面法線を自動判定しない。
-同じ元素でも原子ごとに指定できる。元素一括指定・軌道名のワイルドカードは扱わない。
-軌道名はMINAOのラベル（例 `1s`, `2s`, `2px`, `2py`, `2pz`）に完全一致させる。
-殻全体の省略指定も可能で、`"1 2p A"` は `"1 2px 2py 2pz A"` と同じ意味。
-`3d`等も、その原子のMINAOに存在する全成分へ展開する。A/I/Fの全てで使用でき、
-`"1 2s 2p A"` のように混在できる。`2p`と`2pz`の重複指定はエラーになる。
-cc-pVDZ等の計算基底の追加の動径関数や分極関数を直接番号指定する機能ではない。
-計算基底に関係なく参照MINAOに存在しない軌道、範囲外の原子、重複・役割矛盾は
-HF開始前に理由を表示し、終了コード1で終了する。射影結果に関する矛盾はHF後に検出する。
-`frozen_core`、`inactive_mos`、`active_mos`、πモードとは併用できない。
+`2pz` follows the **Cartesian z axis of the input**, not an automatically detected molecular-plane normal.
+Individual atoms of the same element can be selected separately. Element-wide selection and orbital-name wildcards are not supported.
+Orbital names must exactly match MINAO labels such as `1s`, `2s`, `2px`, `2py`, and `2pz`.
+Whole-shell shorthand is supported: `"1 2p A"` is equivalent to `"1 2px 2py 2pz A"`.
+Shells such as `3d` expand to all components present in that atom's MINAO. Shorthand works for A/I/F and can be mixed, as in `"1 2s 2p A"`.
+Overlapping requests such as `2p` plus `2pz` are errors.
+This is not direct indexing of additional radial or polarization functions in calculation bases such as cc-pVDZ.
+Missing reference-MINAO orbitals, out-of-range atoms, duplicates, and role conflicts report their reason and exit with code 1 before HF, regardless of calculation basis.
+Projection-dependent conflicts are detected after HF.
+Do not combine with `frozen_core`, `inactive_mos`, `active_mos`, or pi modes.
 
-`optimize_core=true`ではF以外のinactive空間とactive空間を緩和するため、
-最終軌道のAO組成は指定時から変わり得る。AO指定は初期空間の選択であり、
-原子への局在やp軌道方向を最適化中に拘束するものではない。
+With `optimize_core=true`, inactive spaces other than F and the active space can relax, so final AO compositions may differ from their initial selection.
+AO requests select an initial space; they do not constrain atom localization or p-orbital direction during optimization.
 
-## 保存済みJSONから初期軌道を引き継ぐ
+## Initial orbitals from saved JSON
 
 ```toml
 [molecule]
@@ -293,7 +281,7 @@ multiplicity = 1
 backend = "jax"
 device = "cpu"
 energy_evaluation = "determinant"
-initial_json = "thiophene_ao.json" # このTOMLからの相対パス
+initial_json = "thiophene_ao.json" # Relative to this TOML file
 
 [active_space]
 mode = "ao"
@@ -302,57 +290,50 @@ ao_electrons = 6
 optimize_core = true
 
 [output]
-path = "thiophene_ccpvdz.json" # 読み込み元と別の名前にする
+path = "thiophene_ccpvdz.json" # Use a name different from the source
 ```
 
-`initial_json`を指定すると、`initial_guess`と`initial_perturbation`に優先し、
-保存されたSCGVB軌道・スピン結合係数・inactive軌道・active基底を読み込む。
-同一原子順序、同一構造（Bohr座標差1e-7以内）、電荷、多重度、活性電子数、
-inactive軌道数、F固定軌道数が必要。構造変更・原子並べ替えは未対応。
+`initial_json` overrides `initial_guess` and `initial_perturbation` and loads saved SCGVB orbitals, spin-coupling coefficients, inactive orbitals, and the active basis.
+Atom order, charge, multiplicity, active-electron count, inactive-orbital count, and frozen-F-orbital count must match.
+By default geometry must also match within 1e-7 Bohr. Explicit `allow_geometry_change = true` permits projection to a changed geometry; atom reordering is not supported.
+See [Geometry optimization](GEOMETRY_OPTIMIZATION.md#wavefunction-transfer) for changed-geometry transfer.
 
-基底が異なる場合、AO間重なりから `S_new C_new = S_new,old C_old` を解き、
-coreの直交規格化とcore–active直交性を復元する。F空間はI空間とは別に保持する。
-active基底の次元が増えた場合は新しい選択空間から直交補空間を追加する。
-小さい次元への縮小や射影でのランク欠落はエラー。Csは引き継ぎ、射影後の
-波動関数ノルムを1に再規格化する。基底間射影自体は近似であり、元のエネルギーが
-保存される保証も、最適化が必ず収束する保証もない。
+For a different basis at the same geometry, cross-AO overlaps solve `S_new C_new = S_new,old C_old`, restoring core orthonormality and core–active orthogonality.
+The F space is retained separately from I. If the active-basis dimension increases, an orthogonal complement from the new selection is added.
+Dimension reduction or projection rank loss is an error. Cs is retained and the projected wavefunction norm is restored to one.
+Basis projection is approximate: preservation of the original energy and subsequent convergence are not guaranteed.
 
-読み込んだcore/active空間が初期空間となるため、新しい基底でHFから選び直した
-空間とは異なる。`optimize_core=false`では射影後のcore/active空間を固定し、
-その中でSCGVB係数のみを最適化する。空間そのものを緩和する場合はtrueを指定する。
-CLIでも `--initial-json result.json` を利用でき、`--check` で入力と射影を検証できる。
+At unchanged geometry, loaded core/active spaces define the initial spaces and can differ from a fresh HF selection in the new basis.
+With `optimize_core=false`, projected core/active spaces are fixed while SCGVB coefficients are optimized within them; use true to relax the spaces themselves.
+For changed geometries, the newly selected target spaces are retained and only the initial wavefunction is projected.
+The CLI also accepts `--initial-json result.json`; `--check` validates input and projection.
 
-## 結合次数の自動出力
+## Automatic bond-order output
 
-通常計算と保存JSONの `scgvb/analysis/population.py` による解析の両方で、電荷・スピン
-解析に続いてMayer結合次数とWiberg–Löwdin結合指数を出力する。追加指定は不要。
-正規化SCGVBの全一電子密度（inactive電子を含む）を共有し、再最適化しない。
+Both normal calculations and saved-JSON analysis with `scgvb.analysis.population` display Mayer bond orders and Wiberg–Löwdin bond indices after charge/spin analysis, without additional settings.
+They share the normalized full SCGVB one-electron density, including inactive electrons, without reoptimization.
 
-`P=P_alpha+P_beta`, `R=P_alpha-P_beta`, `S=AO重なり行列`として、
-原子A,BのAOブロック間の和から次を計算する。
+For `P=P_alpha+P_beta`, `R=P_alpha-P_beta`, and AO overlap `S`, summation over AO blocks of atoms A and B gives:
 
-- Mayer: `sum [(PS)_mu,nu (PS)_nu,mu + (RS)_mu,nu (RS)_nu,mu]`。
-  開殻ではスピン密度項を含む。
-- Wiberg–Löwdin: `sum (P_L)_mu,nu (P_L)_nu,mu`, `P_L=S^(1/2) P S^(1/2)`。
-  全電子密度を用いる定義で、スピン密度項は追加しない。NBO/NAO版ではない。
+- Mayer: `sum [(PS)_mu,nu (PS)_nu,mu + (RS)_mu,nu (RS)_nu,mu]`, including the spin-density term for open shells.
+- Wiberg–Löwdin: `sum (P_L)_mu,nu (P_L)_nu,mu`, with `P_L=S^(1/2) P S^(1/2)`. This uses total electron density without an additional spin-density term and is not the NBO/NAO variant.
 
-定義は https://www.faccts.de/docs/orca/6.1/manual/contents/spectroscopyproperties/population.html
-の式(5.12),(5.13)に対応する。相関波動関数の一電子密度に適用した解析指標であり、
-二電子密度から得る厳密な電子対共有数ではない。基底・直交化・スピン状態に依存し、
-整数の形式結合次数や結合エネルギーとは一致を要求しない。負値も切り捨てない。
+These definitions correspond to equations (5.12) and (5.13) in the [ORCA population-analysis manual](https://www.faccts.de/docs/orca/6.1/manual/contents/spectroscopyproperties/population.html).
+They are analysis indices applied to a correlated wavefunction's one-electron density, not exact electron-pair sharing counts from the two-electron density.
+They depend on basis, orthogonalization, and spin state and need not equal integer formal bond orders or bond energies.
+Negative values are not clipped.
 
-JSONの `population_analysis.bond_orders` に全原子対の `pairs` と対称な `matrices`
-（キー `mayer`, `wiberg_lowdin`）、定義を保存する。独立解析の出力では
-`bond_orders` がトップレベルにある。原子番号は1始まりで、行列の行列順は入力原子順。
-対角は0（原子内指数は未算出）。画面表示のみ、どちらかの指数の絶対値が0.05以上の
-原子対に絞る。全原子対の値はJSONに残る。
+JSON `population_analysis.bond_orders` stores all atom `pairs`, symmetric `matrices` with keys `mayer` and `wiberg_lowdin`, and definitions.
+Standalone analysis puts `bond_orders` at the top level.
+Atom indices are one-based and matrix ordering follows input atom order.
+Diagonals are zero; intra-atomic indices are not calculated.
+Console output alone is restricted to pairs with either absolute index at least 0.05; all pair values remain in JSON.
 
-## 最適化診断の出力レベル
+## Optimization diagnostic output levels
 
-`[output] verbose` は `false` / `true` または整数 `0` / `1` / `2` を指定できます。
-`false` / `0` は進捗表示なし、`true` / `1` は従来の進捗表示、`2` は進捗表示に加えて
-係数・積分・収束指標を保存します。CLIは `--verbose 2`（または `--verbose=2`）、
-従来の `--verbose` はレベル1、`--no-verbose` はレベル0です。
+`[output] verbose` accepts `false` / `true` or integers `0` / `1` / `2`.
+`false` / `0` disables progress; `true` / `1` retains existing progress output; `2` also saves coefficients, integrals, and convergence indicators.
+Use `--verbose 2` or `--verbose=2` in the CLI. Plain `--verbose` is level 1 and `--no-verbose` is level 0.
 
 ```toml
 [output]
@@ -360,44 +341,32 @@ path = "thiophene_ccpvdz_verbose.json"
 verbose = 2
 ```
 
-診断データは出力JSONと同じ場所の `<出力名の拡張子を除いた部分>_diagnostics/run-*/`
-に保存します。実行ごとに新しいディレクトリを作り、過去の診断を上書きしません。
-Python APIは `calculate(..., verbose=2, diagnostics_dir="diagnostics")` で指定でき、
-省略時は作業ディレクトリの `scwf_diagnostics/run-*/` を使います。
-レベル0/1では診断ファイルを作りません。
+Diagnostics are saved beside output JSON in `<output_stem>_diagnostics/run-*/`.
+Each execution creates a new directory without overwriting previous diagnostics.
+In Python, use `calculate(..., verbose=2, diagnostics_dir="diagnostics")`; omission uses `scwf_diagnostics/run-*/` in the working directory.
+Levels 0/1 create no diagnostic files.
 
-- `metadata.json`：PySCF分子情報（`molecule` は `pyscf.gto.loads` で復元）、
-  AOラベル、活性電子数、スピン、評価器、実行デバイス。
-- `reference.npz`：AO重なり行列とスピン結合のbranch diagrams。
-- `solve-NNNN.npz`：各内側SCGVB計算の重なり行列 `S`、有効一電子積分 `h1`、
-  二電子積分 `eri`（chemist順序）、AO上の活性基底 `basis`、非活性軌道 `inactive`、
-  核反発と非活性エネルギーの和 `ecore`、外側の軌道最適化反復番号。
-- `events.jsonl`：各行が一つのイベント。内側計算番号 `solve`、外側反復番号
-  `macro_iteration`、内側拡張Lagrangian反復番号 `iteration`（該当時）、
-  エネルギー分子、波動関数ノルム、全エネルギー、単位軌道ノルム、最大勾配、
-  ペナルティ係数と乗数、エラーを記録します。
-- `event-*.npz`：開始時、ペナルティ最適化後、物理エネルギー精密化後の候補、
-  採用時、失敗時の最後に保存可能だった状態を記録します。
-  生の変数 `x`、最適化基底の係数 `C`、規格化したスピン係数 `Cs`、
-  AO係数 `ao_C`、軌道重なり行列、単位軌道重なり行列の固有値、物理勾配を保存します。
-  軌道更新イベントは更新後の `basis` と `inactive` を保存します。
-  更新前の状態は直前のsolve・acceptedイベントに対応します。
+- `metadata.json`: PySCF molecule information (`molecule` can be restored with `pyscf.gto.loads`), AO labels, active-electron count, spin, evaluator, and device.
+- `reference.npz`: AO overlap matrix and spin-coupling branch diagrams.
+- `solve-NNNN.npz`: each inner SCGVB solve's overlap `S`, effective one-electron integrals `h1`, two-electron integrals `eri` in chemists' notation, AO active basis `basis`, inactive orbitals `inactive`, combined nuclear/inactive constant `ecore`, and outer orbital-optimization iteration index.
+- `events.jsonl`: one event per line, recording inner solve `solve`, outer iteration `macro_iteration`, inner augmented Lagrangian `iteration` when applicable, energy numerator, norm, total energy, unit-orbital norm, maximum gradient, penalty coefficient, multiplier, and errors.
+- `event-*.npz`: the starting state, candidates after penalty optimization or physical-energy refinement, accepted states, and the last saveable state on failure. It stores raw variables `x`, optimization-basis coefficients `C`, normalized spin coefficients `Cs`, AO coefficients `ao_C`, orbital overlap, unit-orbital-overlap eigenvalues, and physical gradients. Orbital-update events store updated `basis` and `inactive`; the previous state corresponds to the preceding solve/accepted event.
 
-NPZは `numpy.load(path, allow_pickle=False)` で読み取れます。
-全エネルギーは `numerator / norm + ecore` です。
-失敗して結果JSONが作成されなくても、そこまでの診断は残ります。
-診断は解析用で、`initial_json` に直接指定する再開ファイルではありません。
-評価できなかった指標は `evaluation_error` を記録し、生の変数は保存します。
-レベル2は追加のエネルギー・勾配評価とファイル保存を行うため、実行時間と容量が増えます。
-最適化アルゴリズムと収束条件は変更しません。
+Read NPZ files with `numpy.load(path, allow_pickle=False)`.
+Total energy is `numerator / norm + ecore`.
+Diagnostics remain even if a failed calculation produces no result JSON.
+They are analysis files, not restart files directly usable as `initial_json`.
+Unavailable indicators record `evaluation_error`, while raw variables are retained.
+Level 2 adds energy/gradient evaluations and file output, increasing runtime and storage.
+Optimization algorithms and convergence criteria are unchanged.
 
-内側最適化は、各固定Hamiltonianについて規格化可能な最良の物理状態を保持します。
-比較するのはペナルティ目的関数ではなく `numerator / norm` です。
-最良値より `1e-10 Eh` を超えて高い候補からは再開せず、保持した状態へ戻します。
-改善のない復帰が5回続いた場合は未収束として停止し、収束条件は緩めません。
-レベル2の `best` イベントは最良状態の更新、`best_restart` はその状態からの再開です。
-失敗イベントにも保持した最良状態を保存します（未取得の場合は最後の状態）。
-各内側計算で最良値は初期化され、異なる積分のエネルギーを比較しません。
+For each fixed Hamiltonian, the inner optimizer retains the best normalizable physical state.
+Comparison uses `numerator / norm`, not the penalty objective.
+Candidates more than `1e-10 Eh` above the best value are not used for restarts; the retained state is restored instead.
+Five consecutive restores without improvement stop as nonconverged, without relaxing criteria.
+At level 2, `best` records a new best state and `best_restart` records restart from it.
+Failure events also store the retained best state, or the latest state if none was obtained.
+The best value resets for every inner solve; energies with different integrals are not compared.
 
 Optional `[optimizer] joint_correction = true` adds a bounded correction of
 orbital and spin coefficients together after each alternating cycle from
@@ -406,7 +375,7 @@ orbital and spin coefficients together after each alternating cycle from
 evaluation. The default is `false`. See `JAX_BACKEND.md` for the experimental
 six-direction approximation, physical bounds and unchanged convergence tests.
 
-## スピン初期値と同時補正の開始時期を独立に指定する
+## Independent spin initialization and joint-correction start
 
 ```toml
 [calculation]
@@ -426,48 +395,44 @@ joint_correction = true
 joint_correction_start = 21
 ```
 
-`initial_spin_guess = "eigen"` は、初期軌道を固定してスピンの一般化固有値問題を
-解き、最適化へ渡すCsを決めます。軌道初期値の `initial_guess` と最適化方式の
-`method` から独立です。HF・core・randomの軌道、simultaneous・alternatingの
-最適化、一軌道更新、wavefunction更新、不活性軌道緩和に使用できます。
-初期化時には軌道を変更しません。determinant評価では中心化したprojected求解、
-permutation評価では既存のスピン行列による求解を使います。
-初期化用の `initial_spin_overlap_cutoff` は最適化用の `spin_overlap_cutoff` と別で、
-既定値は1e-10です。数値的に保持できる計量部分空間と入力状態を用いて求解し、
-実際のエネルギーを上げる更新は採用しません。小さい計量固有値を無条件に逆数化しません。
+`initial_spin_guess = "eigen"` solves the generalized spin eigenproblem at fixed initial orbitals to obtain Cs for optimization.
+It is independent of orbital `initial_guess` and optimizer `method`.
+It supports HF/core/random orbitals, simultaneous/alternating optimization, single-orbital and wavefunction updates, and inactive-orbital relaxation.
+Initialization leaves orbitals unchanged. Determinant evaluation uses the centered projected solver; permutation evaluation uses the existing spin matrices.
+`initial_spin_overlap_cutoff` is separate from optimization `spin_overlap_cutoff` and defaults to 1e-10.
+The solve uses the numerically retained metric subspace and incoming state, rejecting actual energy increases.
+Small metric eigenvalues are not inverted unconditionally.
 
-`initial_spin_guess` の既定値は従来互換の `"uniform"` です。新規計算では
-Csを等係数1/sqrt(fs)で開始し、`initial_json` を指定した再開では保存Csを保持します。
-再開に `"eigen"` を明示した場合だけ、読み込んだ軌道を固定してCsを解き直します。
-初期化結果、Cs、計量ランク、更新前後の活性エネルギーと採用状況は結果JSONの
-`calculation.spin_initialization` に記録します。詳細診断では `initial_spin` イベントも保存します。
-交互最適化の初回スピン求解は引き続き実施し、初期化と最適化で異なるカットオフも使えます。
+The default `initial_spin_guess` remains the compatible `"uniform"`.
+New calculations start Cs at equal coefficients 1/sqrt(fs); `initial_json` restarts retain saved Cs.
+Only explicitly selecting `"eigen"` on restart resolves Cs at the loaded orbitals.
+Initialization results, Cs, metric rank, before/after active energies, and acceptance are recorded in JSON `calculation.spin_initialization`.
+Detailed diagnostics also save an `initial_spin` event.
+Alternating optimization still performs its first spin solve, and initialization/optimization can use different cutoffs.
 
-上の例は最初の20スイープを交互最適化だけで進め、21スイープ目の交互更新後から
-各スイープ末に同時補正を追加します。補正だけの独立した最適化へ置き換える指定ではありません。
-切り替え時に軌道・Cs・ノルムをリセットしません。`joint_correction_start` は1以上の整数で、
-1なら従来の「初回から補正」です。1以外の指定には `joint_correction = true` が必要です。
-各スイープの診断に `optimization_phase` と `joint_correction_active` を記録します。
+The example performs alternating optimization alone for the first 20 sweeps, then adds joint correction after alternating updates at the end of every sweep from sweep 21 onward.
+It does not replace alternating optimization with an independent correction-only solve.
+Orbitals, Cs, and norm are not reset at the transition.
+`joint_correction_start` is an integer at least 1; 1 retains correction from the first sweep.
+Any other value requires `joint_correction = true`.
+Sweep diagnostics record `optimization_phase` and `joint_correction_active`.
 
-開始番号は各 `optimize` 呼び出し内の1始まりです。再開・不活性軌道緩和の各内側求解でも
-番号は1に戻ります。上限より後の開始番号では、その呼び出し中には補正しません。
-切り替え前に全体勾配・規格化の収束条件を満たせば、補正せず収束終了します。
-補正を待つ有限の前処理期間は、エネルギー停滞だけでは停止せず、指定開始まで進めます。
-切り替え時に停滞カウンタをリセットし、その後は従来と同じ5回の停滞で未収束停止します。
-エネルギー増加の検出、反復上限、全体勾配1e-6以下と規格化の収束判定は全期間で維持します。
+The start index is one-based within each `optimize` call. Restart and every inactive-relaxation inner solve begin again at 1.
+A start beyond the iteration limit produces no corrections during that call.
+If full-gradient and normalization criteria are satisfied before the transition, the solve converges without correction.
+The finite preconditioning period awaiting correction does not stop on energy stagnation alone; it proceeds to the requested start.
+The stagnation counter resets at the transition, then the existing five-stagnation nonconvergence rule applies.
+Energy-increase checks, iteration limits, and full-gradient 1e-6/normalization convergence criteria remain active throughout.
 
-対応するCLIは `--initial-spin-guess eigen`、`--initial-spin-overlap-cutoff 1e-12`、
-`--joint-correction --joint-correction-start 21` です。
-例入力は `examples/inputs/fe_co5_staged_joint.toml` にあります。
-20スイープは設定例で、Fe(CO)5について検証済みの最適値ではありません。
+Corresponding CLI options are `--initial-spin-guess eigen`, `--initial-spin-overlap-cutoff 1e-12`, and `--joint-correction --joint-correction-start 21`.
+An input is provided at `examples/inputs/fe_co5_staged_joint.toml`.
+Twenty sweeps is an illustrative choice, not a validated optimum for Fe(CO)5.
 
-### 実験用の補正APIとの違い
+### Distinction from experimental correction APIs
 
-通常の `joint_correction = true` が呼ぶのは `CoupledOptimization.correction` の
-最大6方向の補正です。残差方向を追加する `adaptive_correction` や、軌道側だけを減衰して
-スピン応答を戻す `SpinResponseCorrection.response_correction` を選ぶTOMLキーはありません。
-これらは [HPC_README.md](HPC_README.md#保存状態から同時補正だけを比較する)に記載した
-診断スクリプトまたは低水準APIから明示的に呼びます。
-診断スクリプトは同じ保存状態から同時補正だけを試し、交互最適化を挟みません。
-これは上の `joint_correction_start` による、交互更新への補正追加とは異なる実行です。
-Fe(CO)5でのこれらの試行では収束は得られておらず、収束済みの設定例ではありません。
+Normal `joint_correction = true` invokes the correction with at most six directions in `scgvb.optimization.coupled.correction`.
+No TOML key selects residual-augmented `adaptive_correction` or orbital-only-damped `scgvb.optimization.spin_response.response_correction`.
+Invoke them explicitly through the diagnostic scripts or low-level APIs described in [HPC_README.md](HPC_README.md#comparing-joint-corrections-from-a-saved-state).
+These scripts try only joint corrections from the same saved state without intervening alternating optimization.
+That differs from adding corrections to alternating updates using `joint_correction_start` above.
+These Fe(CO)5 trials did not converge and are not converged example configurations.

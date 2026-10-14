@@ -1,83 +1,71 @@
-# LiHの発散を調べて確認した計算式の修正
+# Corrections to the energy formulas identified while investigating LiH divergence
 
-旧実装との数値一致だけでは物理的な正しさを保証できなかった。
-以下の修正は最適化の許容誤差を緩める変更ではなく、エネルギーの評価式を
-訂正する変更である。以前に出力したH₂・HeH⁺などのエネルギーも変わる。
+Numerical agreement with the old implementation did not guarantee physical correctness.
+The following changes correct energy evaluation formulas rather than relaxing optimizer tolerances.
+Previously reported energies for H₂, HeH⁺, and other systems therefore also change.
 
-## 修正した点
+## Corrections
 
-1. **左右のスピン置換の重なり**
-   符号付き置換表現を U とすると、ペアの行列は
-   `U(left).T @ U(right)`。旧コードは左側の逆置換を含まない合成を用いていた。
-   同じ置換を左右に置いたときに単位行列になること、全ペア行列のエルミート性を
-   満たす必要がある。スピン関数そのものの係数・基底順序は変更していない。
+1. **Overlap between left and right spin permutations**
+   For signed permutation representations U, the pair matrix is `U(left).T @ U(right)`.
+   The old composition omitted the inverse permutation on the left.
+   Identical left and right permutations must give the identity, and the complete set of pair matrices must satisfy Hermiticity.
+   Spin-function coefficients and basis ordering are unchanged.
 
-2. **二電子積分の添字**
-   PySCFの空間AO積分は chemists' notation `(ij|kl)`。
-   二電子のbra軌道が `l,n`、ket軌道が `r,t` なら必要なのは `(lr|nt)`。
-   旧コードの `(ln|rt)` を訂正した。
+2. **Two-electron integral indices**
+   PySCF spatial AO integrals use chemists' notation `(ij|kl)`.
+   With bra orbitals `l,n` and ket orbitals `r,t`, the required integral is `(lr|nt)`.
+   This corrects the old `(ln|rt)` contraction.
 
-3. **空間AO積分の取得**
-   明示的に `mol.intor('int1e_ovlp')` 等を利用。
-   スピノル積分を1つおきに取り実部を抜き出す旧処理は、p軌道を含むLiの
-   空間AO基底と一致しなかった。重なり・一電子・二電子積分を同じAO基底で取得する。
+3. **Spatial AO integral retrieval**
+   Integrals are requested explicitly, for example with `mol.intor('int1e_ovlp')`.
+   Taking every other spinor integral and extracting its real part did not match the spatial AO basis of Li, which includes p orbitals.
+   Overlap, one-electron, and two-electron integrals now use the same AO basis.
 
-エネルギーの置換和は配列演算にまとめた。積分取得時の重複するSCF実行も削除。
-Augmented Lagrangian と複素ステップ勾配、規格化許容誤差 `1e-8` は継続して使用する。
+Permutation sums in the energy are evaluated with array operations, and duplicate SCF runs during integral retrieval have been removed.
+The augmented Lagrangian method, complex-step gradients, and normalization tolerance `1e-8` are retained.
 
-## 最適化でのスケール自由度
+## Scale freedom in optimization
 
-全ての項に各軌道が一度ずつ現れるため、軌道列を非零定数で割っても波動関数の
-全体スケールしか変わらない。まず各軌道列の大きさをそろえ、次に全列を
-`Delta**(-1/(2*Ne))` 倍することで同じ物理状態を規格化できる。
-この操作の前後でエネルギー比 `Ee/Delta` が不変であることをテストしている。
+Each orbital occurs once in every term, so dividing orbital columns by nonzero constants changes only the overall wavefunction scale.
+First equalizing column magnitudes and then multiplying every column by `Delta**(-1/(2*Ne))` normalizes the same physical state.
+Tests verify that the energy ratio `Ee/Delta` is invariant under this operation.
 
-内側の解にこの処理を適用し、規格化誤差が `1e-8` 未満かつ
-`Ee/Delta` の勾配の無限大ノルムが `1e-6` 以下なら受理する。
-物理的な停留条件を確認せずに規格化だけして収束扱いにはしない。
-これにより、全体振幅だけを直すために罰則係数を増やし続ける処理を避ける。
+This rescaling is applied to the inner solution. The result is accepted when normalization error is below `1e-8` and the infinity norm of the `Ee/Delta` gradient is at most `1e-6`.
+Normalization alone does not count as convergence without checking physical stationarity.
+This avoids repeatedly increasing the penalty coefficient solely to correct the overall amplitude.
 
-内側BFGSが精度損失・反復上限で停止し、物理的な勾配も残る場合は、
-当該外側反復に入る前の状態を規格化し、`Ee/Delta` を最適化して改善する。
-失敗した内側計算の軌道は線形従属性が強まっている場合があるため、補助処理の
-出発点にはしない。
-この補助処理後も規格化誤差 `1e-8` と物理的勾配上限 `1e-6` の両方を検査する。
-これは0.6 ÅのLiHで再現した、罰則係数の増加だけでは解消しない停滞への対処。
+If inner BFGS stops because of precision loss or the iteration limit while a physical gradient remains, the state from before the current outer iteration is normalized and improved by optimizing `Ee/Delta`.
+Orbitals from the failed inner calculation are not used as the fallback starting point because their linear dependence may have increased.
+The fallback checks both normalization error `1e-8` and the physical-gradient limit `1e-6`.
+This addresses the stagnation reproduced for LiH at 0.6 Å, which increasing the penalty coefficient alone did not resolve.
 
-## 独立した検証
+## Independent validation
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest \
     tests.test_physical_energy tests.test_spin_function tests.test_energy_regression tests.test_optimizer -v
 ```
 
-`test_physical_energy.py` は、非直交軌道から行列式の小行列式を使って
-直交AO基底のCI係数を構成する。修正した置換ペアや積分の縮約式を流用せず、
-PySCFのFCIハミルトニアン作用で同じ波動関数の期待値を評価する。
-H₂一重項・三重項、HeH⁺、Li二重項、LiHについて、複数のランダム軌道・
-スピン係数でエネルギーとノルムの一致を確認する。
-また、同じ分子・基底・スピンのFCIエネルギーを下回らないことを確認する。
+`test_physical_energy.py` constructs CI coefficients in an orthogonal AO basis from nonorthogonal orbitals using determinant minors.
+It evaluates the same wavefunction expectation with PySCF's FCI Hamiltonian action, without reusing the corrected permutation pairs or integral contractions.
+Energy and norm agreement is checked for H₂ singlets and triplets, HeH⁺, Li doublets, and LiH using several random orbital and spin-coefficient sets.
+The energy is also checked against the FCI lower bound for the same molecule, basis, and spin.
 
-LiH / STO-3G / 10 Å / seed 40 について最適化の回帰テストも追加した。
-距離走査の3番目の乱数初期値を用いる0.6 ÅのLiHについても、最適化・
-規格化・物理的勾配と独立した行列式展開によるエネルギー比較をテストする。
-この局所最適化は、全ての初期値からの大域最適解を保証するものではない。
-`calc_diatomic_mol.py` の距離走査では、最初の距離だけ乱数で初期化し、
-以降は前の距離で収束した軌道・スピン係数をコピーして初期値にする。
-同じ分子・基底・AO順序での連続した距離走査を想定している。
-各距離で正の乱数軌道からやり直すと、特に1.1 ÅのLiHで強い線形従属性を
-伴う停滞が生じたため。解離極限の計算は従来どおり独立した初期値を使う。
-この継続法も大域最小を保証するものではなく、複数状態の比較には別の初期値での
-計算も必要になる。
-既存のAL終了判定も残しており、内側BFGSの精度損失時にその終了経路を
-使う場合は、従来どおり規格化を満たすことと勾配上限1e-4を確認し、警告する。
+An optimization regression test was added for LiH / STO-3G / 10 Å / seed 40.
+LiH at 0.6 Å, using the third random initial guess of the distance scan, is also tested for optimization, normalization, physical gradients, and energy agreement with an independent determinant expansion.
+This local optimization does not guarantee the global optimum from every starting point.
+The distance scan in `calc_diatomic_mol.py` initializes randomly only at the first distance; subsequent points start from copies of the previously converged orbitals and spin coefficients.
+It assumes a continuous scan with the same molecule, basis, and AO ordering.
+Restarting from positive random orbitals at every distance caused stagnation with strong linear dependence, especially for LiH at 1.1 Å.
+The dissociation-limit calculation retains its independent initial guess.
+This continuation method also does not guarantee a global minimum; comparing multiple states requires calculations with other starting points.
+The existing AL termination criterion is retained. If that termination path is used after inner-BFGS precision loss, normalization and the existing gradient limit `1e-4` are checked, and a warning is issued.
 
-## 実行確認（2026-09-17）
+## Execution checks (2026-09-17)
 
-- 回帰テスト25件が成功。
-- 現在のLiH / STO-3G / seed 40 のスクリプトを実行し、10 Åの解離極限と
-  0.5〜2.5 Å（0.1 Å刻み）の全21点を完了。PDFとEPSの出力も確認。
-- 全22計算の規格化誤差の最大値は約 `2.28e-13`。
-- 10 Åのエネルギーは `-7.782107830840841 Eh`、比較用FCIは
-  `-7.782418402409652 Eh`。独立した行列式展開とのエネルギー差は約 `2.73e-13 Eh`。
-- 検証時は `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MPLBACKEND=Agg` を使用。
+- All 25 regression tests passed.
+- The current LiH / STO-3G / seed 40 script completed the 10 Å dissociation limit and all 21 points from 0.5 to 2.5 Å in 0.1 Å increments. PDF and EPS output was also checked.
+- The largest normalization error across all 22 calculations was approximately `2.28e-13`.
+- The 10 Å energy was `-7.782107830840841 Eh`, compared with FCI at `-7.782418402409652 Eh`. The energy difference from the independent determinant expansion was approximately `2.73e-13 Eh`.
+- Validation used `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MPLBACKEND=Agg`.

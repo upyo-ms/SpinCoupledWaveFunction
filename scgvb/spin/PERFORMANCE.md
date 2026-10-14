@@ -1,59 +1,53 @@
-# スピン関数の効率化（2026-09-17）
+# Spin-function performance improvements (2026-09-17)
 
-> 以下は高速化時点の記録。その後、LiHの検証で左右の置換を結ぶ逆置換の
-> 欠落が判明し、ペア行列を `U(left).T @ U(right)` に修正した。
-> 現在は旧実装の全ペア行列・エネルギーとの一致を正しさの基準にしていない。
-> 単独の置換行列・スピン係数の旧データに加え、独立した行列式展開との
-> 比較を使用する。詳細はルートの `PHYSICS_FIX.md` を参照。
+> This records the original performance work. Subsequent LiH validation identified a missing inverse permutation connecting the left and right permutations; pair matrices were corrected to `U(left).T @ U(right)`.
+> Agreement with all pair matrices and energies of the old implementation is no longer used as a correctness criterion.
+> Validation combines legacy data for individual permutation matrices and spin coefficients with an independent determinant expansion.
+> See `PHYSICS_FIX.md` in the repository root for details.
 
-## 変更内容
+## Changes
 
-- 原始スピン配置を `itertools.combinations` で生成し、旧実装の配置順を保持。
-- 分岐図の行削除をマスクによる一括抽出に変更。
-- 結合係数をスピン配置・基底について配列化。電子ごとの乗算順と符号規約を保持。
-- 隣接交換後の分岐図を辞書で検索し、全基底との逐次比較を削減。
-- 隣接交換の逆行列は、その交換自身であることを利用して数値的な逆行列計算を削除。
-- 置換の分解・行列表現の計算を、配置ペア `(N!)²` 回から異なる置換 `N!` 回へ削減。
-- 行列表現の生成では、使用しない原始スピン係数行列の計算を省略。
-- 電子数・多重度ごとの内部計算を最大4件キャッシュ。公開する行列は個別にコピーし、
-  呼び出し側の変更が他の行列や次回の結果に影響しないようにした。
+- Generate primitive spin configurations with `itertools.combinations`, preserving legacy configuration order.
+- Replace row-by-row branch-diagram deletion with masked extraction.
+- Vectorize coupling coefficients over spin configurations and basis functions, preserving the electron multiplication order and sign convention.
+- Look up branch diagrams after adjacent transpositions in a dictionary instead of comparing against the entire basis sequentially.
+- Remove numerical matrix inversion because each adjacent transposition is its own inverse.
+- Reduce permutation decomposition and matrix-representation calculations from `(N!)²` configuration pairs to `N!` distinct permutations.
+- Avoid generating unused primitive spin-coefficient matrices when constructing matrix representations.
+- Cache up to four internal calculations by electron count and multiplicity. Returned matrices are copied separately so that caller mutations do not affect other matrices or later results.
 
-公開関数の名前・戻り値の構造と `np.matrix` 型、基底・電子配置の並び順、
-`Dr * Dl` の合成順序と符号規約を保持している。
+Public function names, return structures, the `np.matrix` type, basis and electron-configuration ordering, the `Dr * Dl` composition order, and sign conventions are retained.
 
-## 検証
+## Validation
 
 ```bash
 python -m unittest tests.test_spin_function tests.test_energy_regression -v
 ```
 
-11テストが成功。旧実装の保存データは `tests/data/spin_legacy_reference.npz`。
+All 11 tests passed. Legacy reference data is stored in `tests/data/spin_legacy_reference.npz`.
 
-- 2〜8電子の全許容スピンについて、係数と隣接交換行列を旧実装と比較。
-- 2〜4電子の全許容スピンと5電子二重項の全置換表現を比較。
-- 基底・配置の順序は完全一致、係数と行列は `atol=rtol=1e-13` で一致。
-- 原始スピン基底で独立に構成した S² により固有値 S(S+1) を確認。
-- スピン係数の直交規格化、隣接交換の二乗と braid relation を確認。
-- 旧・新の置換表現を使ったエネルギー・規格化因子を複数の入力で比較。
-- `calc_diatomic_mol.py` の解離極限と全24距離点、`test.py` の三重項を
-  旧・新実装で実行。比較したエネルギー値の最大絶対差は、この環境では0。
+- Compared coefficients and adjacent-transposition matrices with the old implementation for every allowed spin with 2–8 electrons.
+- Compared all permutation representations for every allowed spin with 2–4 electrons and for the five-electron doublet.
+- Basis and configuration ordering matched exactly; coefficients and matrices agreed with `atol=rtol=1e-13`.
+- Verified eigenvalues S(S+1) using an independently constructed S² operator in the primitive spin basis.
+- Checked orthonormal spin coefficients, squares of adjacent-transposition matrices, and the braid relation.
+- Compared energies and normalization factors using old and new permutation representations for multiple inputs.
+- Ran the dissociation limit and all 24 distance points in `calc_diatomic_mol.py`, plus the triplet in `test.py`, with both implementations. The largest absolute energy difference in this environment was zero.
 
-これは今回の変更で値を保つ検証であり、既存のエネルギー式全体の妥当性を
-保証するものではない。
+These checks verify preservation of values across this change; they do not establish the validity of the entire existing energy formula.
 
-## 実測時間
+## Measured timings
 
-同一環境、Python 3.12 / NumPy 2.1.1、OPENBLAS_NUM_THREADS=1、
-OMP_NUM_THREADS=1。各処理3回の最短時間。初回相当の比較ではキャッシュを毎回消去。
+All measurements used the same environment: Python 3.12 / NumPy 2.1.1, `OPENBLAS_NUM_THREADS=1`, and `OMP_NUM_THREADS=1`.
+Each value is the shortest of three runs. Caches were cleared before each cold-call comparison.
 
-| 処理 | 旧実装 | 新実装 | 比率 |
+| Operation | Old implementation | New implementation | Speedup |
 |---|---:|---:|---:|
-| 4電子一重項の全置換表現、初回 | 27.78 ms | 2.24 ms | 約12倍 |
-| 5電子二重項の全置換表現、初回 | 1037.21 ms | 35.67 ms | 約29倍 |
-| 5電子二重項の全置換表現、再呼出し | 996.44 ms | 28.35 ms | 約35倍 |
-| 8電子一重項の原始スピン関数・係数 | 10.26 ms | 0.16 ms | 約64倍 |
-| 8電子一重項の隣接交換行列 | 1.47 ms | 0.11 ms | 約14倍 |
+| All permutation representations, four-electron singlet, cold call | 27.78 ms | 2.24 ms | About 12× |
+| All permutation representations, five-electron doublet, cold call | 1037.21 ms | 35.67 ms | About 29× |
+| All permutation representations, five-electron doublet, repeated call | 996.44 ms | 28.35 ms | About 35× |
+| Primitive spin functions and coefficients, eight-electron singlet | 10.26 ms | 0.16 ms | About 64× |
+| Adjacent-transposition matrices, eight-electron singlet | 1.47 ms | 0.11 ms | About 14× |
 
-全プログラムの速度比ではない。公開APIが全配置ペアの行列を返すため、
-出力件数とその保存メモリは引き続き `(N!)²` に比例する。
-この制約を除くには、エネルギー計算側も含めたインターフェース変更が必要。
+These are not speedups for the entire program. The public API still returns matrices for all configuration pairs, so output count and storage remain proportional to `(N!)²`.
+Removing that limitation requires an interface change on the energy-evaluation side as well.

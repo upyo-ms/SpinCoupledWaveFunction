@@ -1,11 +1,10 @@
-# 閉殻軌道と活性空間を用いたSCGVB
+# SCGVB with closed-shell orbitals and active spaces
 
-従来のfull SCGVBは既定動作のまま残している。オプションを指定した場合だけ、
-二重占有の非活性軌道を固定し、残りの電子をSCGVBで扱う。
-`--optimize-core` を追加すると、二重占有を保ちながら非活性軌道も最適化する。
-構造スキャンでの軌道追跡、自動的な精度保証は含まない。
+Full SCGVB remains the default. Only explicitly selected options freeze doubly occupied inactive orbitals and treat the remaining electrons with SCGVB.
+Adding `--optimize-core` also optimizes inactive orbitals while preserving double occupation.
+Orbital tracking across geometry scans and automatic accuracy guarantees are not provided.
 
-## 二重占有を保ったcore軌道の最適化
+## Optimizing core orbitals with double occupation preserved
 
 ```bash
 python calc_molecule.py --atom 'Li 0 0 0; H 0 0 1.6' --basis cc-pvdz \
@@ -14,94 +13,89 @@ python calc_molecule.py --atom 'Li 0 0 0; H 0 0 1.6' --basis cc-pvdz \
   --output lih_relaxed_core.json
 ```
 
-`--frozen-core` / `--inactive-mos` は閉殻軌道の初期選択に用いる。
-`--optimize-core` 指定時は、選択した閉殻軌道をすべて緩和する。
-指定しない場合はこれまでどおり固定する。非活性軌道がない場合はエラーとなる。
-`--active-space pi --optimize-core` も使用可能で、その場合は1sとσ軌道を含む
-全非活性閉殻が緩和対象となる。活性空間の次元と電子数は変えないが、活性空間自体も
-回転するため、初期π射影空間に厳密に固定した計算ではない。
+`--frozen-core` / `--inactive-mos` select the initial closed-shell orbitals.
+With `--optimize-core`, all selected closed-shell orbitals are relaxed; otherwise they remain frozen.
+An empty inactive space is an error for core optimization.
+`--active-space pi --optimize-core` is also supported, relaxing all inactive closed shells, including 1s and sigma orbitals.
+Active-space dimension and electron count remain unchanged, but the active space also rotates, so this is not strictly constrained to the initial projected pi subspace.
 
-`scgvb/optimization/core.py` はPySCFの二段階MCSCF軌道最適化を使う。
-内側ではSCGVBの非直交軌道とCsのみを最適化し、その行列式展開から1・2粒子密度行列を
-作る。FCI係数を独立に最適化したりFCI固有値問題を解いたりはしない。
-外側では閉殻・活性・仮想空間の間を回転し、coreの二重占有とcore–active直交性を保つ。
-活性SCGVB軌道同士には直交性を課さない。
+`scgvb/optimization/core.py` uses PySCF's two-step MCSCF orbital optimizer.
+The inner solve optimizes only nonorthogonal SCGVB orbitals and Cs, then constructs one- and two-particle density matrices from their determinant expansion.
+It neither optimizes independent FCI coefficients nor solves an FCI eigenproblem.
+The outer solve rotates between closed-shell, active, and virtual spaces, preserving core double occupation and core–active orthogonality.
+Active SCGVB orbitals are not constrained to be mutually orthogonal.
 
-`--core-max-iterations` は外側反復上限（既定50）、
-`--core-gradient-tolerance` は軌道回転に対するエネルギー勾配の2ノルム許容値（既定1e-6）。
-内側の物理勾配・規格化と外側の収束をすべて検査する。失敗時に収束値として返さない。
-JSONの `core_optimization` に初期固定coreエネルギー、反復履歴、最終軌道勾配、
-初期core係数、二重占有数を保存する。通常の軌道係数欄には最適化後の係数を保存する。
+`--core-max-iterations` limits outer iterations (default 50).
+`--core-gradient-tolerance` sets the 2-norm tolerance of the energy gradient with respect to orbital rotations (default 1e-6).
+Inner physical gradients and normalization, and outer convergence, are all checked; failure is not returned as a converged result.
+JSON `core_optimization` records the initial frozen-core energy, iteration history, final orbital gradient, initial core coefficients, and double occupations.
+The usual orbital-coefficient fields contain optimized coefficients.
 
-NumPy/JAXと両エネルギー評価器に対応する。JAXの指定デバイスは内側のSCGVB評価に適用し、
-外側の積分変換・密度行列・軌道回転は現在CPUで行う。反復ごとのJAX評価器の再構築も必要。
-活性空間の行列式サイズ制限は置換和を選択した場合も適用される。
-12π系の軌道緩和の性能・収束は別途評価が必要で、固定core版と同じ速度を保証しない。
+NumPy/JAX and both energy evaluators are supported.
+The requested JAX device is used for inner SCGVB evaluation; outer integral transformations, density matrices, and orbital rotations currently run on the CPU. JAX evaluators must also be rebuilt each iteration.
+The active determinant-space size limit applies even when permutation evaluation is selected.
+Performance and convergence of orbital relaxation for 12-pi-electron systems require separate evaluation; frozen-core timings do not carry over automatically.
 
-## 行列式サイズ設定：14電子対応
+## Determinant-size profiles: 14-electron support
 
-既定の `standard` は従来どおり各スピン6電子以下、主要配列200万要素以下。
-`large14` は明示的に指定した場合だけ、最大14電子・14軌道、各スピン7電子以下、
-主要配列1200万要素以下を許可する。無制限の解除ではなく、GPU空きメモリや
-収束の保証でもない。14電子・14軌道の一重項は11,778,624行列式、429スピン関数。
+The default `standard` profile retains at most six electrons of each spin and two million elements per major array.
+Explicit `large14` selection allows up to 14 electrons and 14 orbitals, at most seven electrons of each spin, and 12 million elements per major array.
+This is a bounded extension, not an unlimited override or a guarantee of GPU memory availability or convergence.
+A 14-electron/14-orbital singlet has 11,778,624 determinants and 429 spin functions.
 
 ```bash
 python calc_molecule.py --input phenazine.toml --determinant-size-profile large14
-# サイズ選択だけを確認
+# Check the selected size profile only
 python calc_molecule.py --input phenazine.toml --determinant-size-profile large14 --check
 ```
 
-TOMLでは `[calculation]` に `determinant_size_profile = "large14"` を指定する。
-Pythonでは `calculate(..., determinant_size_profile='large14')` または
-`SCWF_Energy(..., determinant_size_profile='large14')` を使う。NumPy/JAXに共通。
-エネルギー方式は別設定なので、14電子では `energy_evaluation='determinant'` を使う。
-置換和の上限はこのオプションでは解除しない。
+In TOML, specify `determinant_size_profile = "large14"` under `[calculation]`.
+In Python, use `calculate(..., determinant_size_profile='large14')` or `SCWF_Energy(..., determinant_size_profile='large14')`, for either NumPy or JAX.
+Energy evaluation is configured separately; use `energy_evaluation='determinant'` for 14 electrons.
+This option does not lift the permutation-sum limit.
 
-選択した設定はコア緩和の内側・最終評価・電子密度解析にも引き継ぎ、結果JSONの
-`calculation.determinant_size_profile` に保存する。再開計算では同じ設定を入力またはCLIで
-指定する（再開JSONを読んでも既定の安全上限を自動的には引き上げない）。
-保存JSONの電子密度再解析は保存された設定を使用し、古いJSONは `standard` として扱う。
+The selected profile propagates into core-relaxation inner solves, final evaluation, and density analysis, and is saved as `calculation.determinant_size_profile` in result JSON.
+Specify the same profile in the input or CLI when restarting; reading restart JSON does not automatically raise the default limits.
+Density reanalysis uses the saved profile; older JSON is treated as `standard`.
 
-rikyuのGB200 1基で14e/14oの独立エネルギー・勾配検算、フェナジンの固定非活性軌道と
-全非活性軌道緩和の収束を確認した。ポリエンのエネルギー・勾配評価は約1.48秒、
-GPUピーク実使用約3.22 GiB。ただしスピン・分子・基底・最適化方式が変わる場合の
-速度やメモリは別途確認する。これらの実績は14電子一重項のものである。
+On one rikyu GB200, independent 14e/14o energy/gradient checks and phenazine convergence with both frozen inactive orbitals and all inactive orbitals relaxed were verified.
+Polyene energy/gradient evaluation took about 1.48 seconds with approximately 3.22 GiB peak actual GPU usage.
+Recheck performance and memory for other spins, molecules, bases, or optimization methods. These measurements concern 14-electron singlets.
 
-## 実行例
+## Examples
 
-プロジェクトのルートで実行する。PySCF、NumPy、SciPyが必要で、
-`--backend jax` を選ぶ場合はJAXも必要。8活性電子の最適化にはJAXを推奨する。
+Run from the project root. PySCF, NumPy, and SciPy are required; JAX is also needed with `--backend jax`.
+JAX is recommended for optimization with eight active electrons.
 
 ```bash
-# CH4：C 1sの1軌道（2電子）を固定、8電子を活性にする
+# CH4: freeze one C 1s orbital (two electrons), leaving eight active electrons
 python calc_molecule.py --xyz examples/ch4.xyz --frozen-core 1 \
   --energy-evaluation determinant --backend jax --device cpu \
   --initial-guess hf --output ch4_active.json
 
-# ベンゼン：xy平面に置いた中性一重項、6π電子
+# Benzene: neutral singlet in the xy plane, six pi electrons
 python calc_molecule.py --xyz examples/benzene.xyz --active-space benzene-pi \
   --energy-evaluation determinant --backend jax --device cpu \
   --initial-guess hf --output benzene_pi.json
 
-# 最適化前に選択結果とサイズを確認（活性空間の選択にはHFを実行）
+# Check selection and size before optimization (HF runs for active-space selection)
 python calc_molecule.py --xyz examples/benzene.xyz --active-space benzene-pi \
   --energy-evaluation determinant --check
 
-# 小さい活性空間はNumPyでも計算できる
+# Small active spaces can also use NumPy
 python calc_molecule.py --atom 'Li 0 0 0; H 0 0 1.6' --frozen-core 1 \
   --energy-evaluation determinant --initial-guess hf --output lih_active.json
 
-# 既存のfull SCGVB：既定動作は変更していない
+# Existing full SCGVB: default behavior is unchanged
 python calc_molecule.py --xyz examples/h4.xyz --output h4_full.json
 ```
 
-## 一般の平面π系：COTの8π電子
+## General planar pi systems: eight pi electrons in COT
 
-`--active-space pi` はベンゼンに限定せず、平面炭化水素の炭素2p軌道を目印に
-活性空間を選ぶ。分子面の法線を座標から求め、各炭素のMINAO 2px/2py/2pzを
-法線方向に合成するため、分子をxy平面へ置き直す必要はない。
-占有・空軌道の両部分空間に対するAVAS型の射影を対角化し、固有値0.2以上を採用する。
-ROHFの単占有軌道はすべてπ空間に属する必要がある。
+`--active-space pi` selects an active space using carbon 2p targets in planar hydrocarbons, not only benzene.
+It derives the molecular-plane normal from coordinates and combines each carbon's MINAO 2px/2py/2pz along that normal, so the molecule need not be aligned with the xy plane.
+AVAS-type projections in both occupied and virtual subspaces are diagonalized; eigenvalues at least 0.2 are retained.
+All singly occupied ROHF orbitals must belong to the pi space.
 
 ```bash
 python calc_molecule.py --xyz examples/COT.xyz \
@@ -110,34 +104,30 @@ python calc_molecule.py --xyz examples/COT.xyz \
   --initial-guess hf --output cot_pi.json
 ```
 
-最適化せず確認する場合は同じ指定に `--check` を付ける。
-Pythonでは `calculate(..., active_space='pi', pi_electrons=8, ...)`。
-`--pi-electrons 8` は選ばれた電子数が8であることの検査で、省略時は射影から決定する。
-電子数を強制的に変更する機能ではなく、不一致なら停止する。
+Add `--check` to the same command to check without optimization.
+In Python, use `calculate(..., active_space='pi', pi_electrons=8, ...)`.
+`--pi-electrons 8` checks that eight electrons were selected; if omitted, the count follows from projection.
+It does not force the electron count and stops on mismatch.
 
-提供された `examples/COT.xyz` では、56電子のうち8電子・8軌道が活性となり、
-残り48電子を24本の固定閉殻軌道にまとめる。一重項スピン関数は14個。
-STO-3G/JAX CPU/seed=40/HF初期値で `-303.880757161246 Eh` に収束した。
-最大絶対勾配は1.28e-8、ノルム誤差は8.89e-16未満。
-同じ固定閉殻のCASCIは `-303.884874619423 Eh`、HFは `-303.674298594311 Eh`。
-計算結果と独立した参照値は `examples/active_space/cot_pi_*.json` に保存している。
-これは提供された平面構造での単一点計算であり、構造最適化や大域的最小の保証は行わない。
+For `examples/COT.xyz`, eight electrons in eight orbitals are active out of 56 electrons; the remaining 48 electrons occupy 24 frozen closed-shell orbitals. There are 14 singlet spin functions.
+STO-3G/JAX CPU/seed=40/HF initialization converged to `-303.880757161246 Eh`, with maximum absolute gradient 1.28e-8 and norm error below 8.89e-16.
+CASCI with the same frozen closed shells gave `-303.884874619423 Eh`; HF gave `-303.674298594311 Eh`.
+Results and independent references are stored locally as `examples/active_space/cot_pi_*.json`.
+This is a single-point calculation at the supplied planar geometry, not a geometry optimization or a guarantee of a global minimum.
 
-現在の自動 `pi` 選択はC/Hのみ、非直線、全原子の面からの最大偏差1e-4 Å以下が対象。
-各炭素から1本のπターゲットを作り、選択された軌道数が炭素数と一致することを検査する。
-平面性と射影は化学的妥当性の完全な判定ではないため、飽和炭素が混在する系などでは
-自動選択をそのまま適用せず、軌道を確認して手動空間を指定する。
-非平面のsp2炭素系には下記のlocalモードを用いる。ヘテロ原子のπ寄与、部分的なπ原子指定は未対応。
-`pi` と手動MO指定・`--frozen-core` は併用できない。
-既存の `benzene-pi` は互換性のため、従来のxy平面・C6H6限定のまま残している。
+Automatic global `pi` selection currently supports only non-linear C/H systems with all atoms within 1e-4 Å of the molecular plane.
+It constructs one pi target per carbon and checks that the selected orbital count equals the carbon count.
+Planarity and projection do not fully establish chemical suitability. For systems mixing saturated carbons, inspect orbitals and specify a manual space rather than accepting automatic selection directly.
+Use the local mode below for nonplanar sp2 carbon systems. Heteroatom pi contributions and selection of only some pi atoms are not supported.
+`pi` cannot be combined with manual MO selection or `--frozen-core`.
+For compatibility, `benzene-pi` retains its existing restriction to C6H6 in the xy plane.
 
-## 非平面のπ系：ビフェニル
+## Nonplanar pi systems: biphenyl
 
-`--pi-normal-mode local` を指定すると、各炭素の3本のσ結合の方向から局所的な面の
-法線を求め、その方向にMINAOの2px/2py/2pzを合成してπターゲットを作る。
-分子全体が平面である必要はない。AVAS型射影、固定閉殻の有効積分、SCGVB評価器は共通。
-2つの芳香環を独立に解くのではなく、環間相互作用を含む12電子の問題として解く。
-非平面ではπ/σ分離は一般に厳密な対称性による分離ではなく、選択したモデル空間の近似になる。
+With `--pi-normal-mode local`, the three sigma-bond directions around each carbon define a local-plane normal. MINAO 2px/2py/2pz are combined along it to form a pi target.
+The molecule need not be globally planar. AVAS-type projection, effective frozen-core integrals, and SCGVB evaluators are shared.
+The two aromatic rings are solved together as a 12-electron problem including inter-ring interactions, rather than independently.
+For nonplanar systems, pi/sigma separation is generally an approximation defined by the selected model space, not exact symmetry separation.
 
 ```bash
 python calc_molecule.py --xyz examples/biphenyl_45deg.xyz \
@@ -146,81 +136,68 @@ python calc_molecule.py --xyz examples/biphenyl_45deg.xyz \
   --initial-guess hf --output biphenyl_result.json
 ```
 
-GPU環境では `--device gpu` に切り替える。Python APIでは `pi_normal_mode='local'`。
-デフォルトの `global` は従来どおり分子全体の平面を使い、非平面構造は停止する。
+Use `--device gpu` on GPU systems; the Python setting is `pi_normal_mode='local'`.
+The default `global` mode retains a single molecular plane and rejects nonplanar geometries.
 
-付属のビフェニルはC-C=1.397 Åの正六角形2環をC-C=1.49 Åで結び、環間ねじれを45°に
-した検証用構造であり、構造最適化済みではない。STO-3Gでは12電子・12軌道、
-35本の固定閉殻軌道を選択できること、エネルギーと方向微分が独立なNumPy/PySCF評価と
-一致することを確認した。この例のSCGVB最適化の収束はまだ確認していない。
+The included biphenyl is a validation geometry: two regular hexagons with C–C=1.397 Å, joined by a C–C=1.49 Å bond and twisted by 45°. It is not geometry-optimized.
+With STO-3G, selection of 12 electrons in 12 orbitals and 35 frozen closed-shell orbitals was verified, as was energy and directional-derivative agreement with independent NumPy/PySCF evaluation.
+SCGVB optimization convergence for this example has not yet been verified.
 
-localモードの結合推定はC-C <= 1.85 Å / C-H <= 1.30 Åの幾何学的判定を使う。
-各炭素はちょうど3近接原子を持つ必要があり、局所平面からのσ結合の傾きが10°を
-超える場合は停止する。sp3炭素や強いピラミッド化、結合切断付近を自動的にπ系とみなさない。
-結合相手、局所法線、面からの傾き、距離閾値を結果JSONに保存する。
-立体的に混み合った構造などで距離判定が不適切な場合は手動MO選択を検討する。
+Local-mode bond detection uses geometric cutoffs C–C <= 1.85 Å and C–H <= 1.30 Å.
+Each carbon must have exactly three neighbors; sigma-bond tilts greater than 10° from the local plane are rejected.
+sp3 carbons, strongly pyramidal geometries, and structures near bond cleavage are not automatically treated as pi systems.
+Bond partners, local normals, out-of-plane tilts, and distance thresholds are saved in result JSON.
+Consider manual MO selection when distance-based detection is unsuitable, for example in crowded geometries.
 
-## 選択方法と制約
+## Selection options and constraints
 
-- `--frozen-core N`：HFの低エネルギー側からN本の空間軌道を二重占有・固定する。
-  電子数ではなく軌道数。すべて二重占有であることを検査する。
-- `--inactive-mos 1 2 ...`：固定するHF軌道を指定する。CLIは1始まり。
-  `--frozen-core` と併用しない。
-- `--active-mos 2 3 4 ...`：活性SCGVB軌道を展開するHF部分空間を指定する。
-  占有軌道だけでなく、結合の変化を表現する反結合性・空軌道も含める。
-  省略時は非活性軌道の直交補空間全体を用いる。
-- すべてのHF占有軌道は非活性または活性に含める必要がある。
-  重複、範囲外、活性と非活性の重なり、2未満の活性電子数はエラーになる。
-- `--active-space benzene-pi`：PySCF AVASの `C 2pz`、閾値0.2で6電子・6軌道を選ぶ。
-  中性一重項C6H6かつ分子がxy平面にある場合に限定する。
-  6e/6oが得られない場合は停止する。内殻6軌道とσ占有12軌道を固定し、
-  活性π空間の外への軌道変形は許さない。手動選択オプションとは併用しない。
+- `--frozen-core N`: freeze the N lowest-energy HF spatial orbitals with double occupation. N counts orbitals, not electrons; double occupation is checked.
+- `--inactive-mos 1 2 ...`: specify frozen HF orbitals with one-based CLI indices. Do not combine with `--frozen-core`.
+- `--active-mos 2 3 4 ...`: specify the HF subspace for expanding active SCGVB orbitals. Include antibonding/virtual orbitals needed to describe bonding changes, not just occupied orbitals. If omitted, the full orthogonal complement of the inactive space is used.
+- Every occupied HF orbital must be included in either the inactive or active space. Duplicates, out-of-range indices, active/inactive overlaps, and fewer than two active electrons are errors.
+- `--active-space benzene-pi`: select six electrons in six orbitals with PySCF AVAS `C 2pz` and threshold 0.2. This requires neutral singlet C6H6 in the xy plane. Failure to obtain 6e/6o stops execution. Six core and 12 occupied sigma orbitals are frozen; orbitals cannot leave the active pi space. Do not combine with manual-selection options.
 
-MO番号はHFの計算結果に依存する。縮退や構造変化をまたいで同じ軌道を表すとは
-限らない。現在の手動選択はcanonical HF軌道に対する指定で、局在化処理や追跡は
-行わない。初期値の `hf` / `core` / `random` は活性空間内でのみ生成する。
+MO indices depend on the HF result and need not identify the same orbitals across degeneracies or geometry changes.
+Manual selection currently refers to canonical HF orbitals, without localization or tracking.
+Initial guesses `hf` / `core` / `random` are generated only within the active space.
 
-## 共通エンジン
+## Shared engine
 
-`scgvb/orbitals/active_space.py` が固定軌道 `inactive` とS-直交規格化した基底 `basis` を生成する。
-最適化変数Xと出力のAO係数Cの関係は `C = basis @ X`。
-これにより非活性軌道との直交性を常に保ち、活性軌道同士の非直交性は保たれる。
-full版では従来どおりAO係数を直接最適化する。
+`scgvb/orbitals/active_space.py` constructs frozen orbitals `inactive` and an S-orthonormal `basis`.
+Optimization variables X and output AO coefficients C satisfy `C = basis @ X`.
+This always preserves orthogonality to inactive orbitals while retaining mutual nonorthogonality of active orbitals.
+Full-space calculations still optimize AO coefficients directly.
 
-閉殻密度をDとし、PySCFのJ/Kを用いて `V = J[D] - K[D]/2` を計算する。
+For closed-shell density D, PySCF's J/K routines compute `V = J[D] - K[D]/2`.
 
-- 有効一電子積分：`basis.T @ (h + V) @ basis`
-- 二電子積分：活性基底へ変換した通常の電子反発積分
-- 閉殻定数：`Tr[D h] + Tr[D V]/2`
-- 全エネルギー：`E_nuc + E_inactive + numerator / norm`
+- Effective one-electron integrals: `basis.T @ (h + V) @ basis`
+- Two-electron integrals: ordinary electron-repulsion integrals transformed into the active basis
+- Closed-shell constant: `Tr[D h] + Tr[D V]/2`
+- Total energy: `E_nuc + E_inactive + numerator / norm`
 
-スピン関数、軌道初期化、規格化、拡張Lagrangian最適化、Rayleigh商の勾配・精密化は
-full版と共通。`scgvb/energy/numpy_backend.py` と `scgvb/energy/jax_backend.py` は両方の問題を扱う。
-`calcEnergy` は活性部分の分子とノルムを返す。閉殻定数は最適化対象の分子に含めず、
-最終全エネルギーに加える。
+Spin functions, orbital initialization, normalization, augmented Lagrangian optimization, and Rayleigh-quotient gradients/refinement are shared with full-space calculations.
+`scgvb/energy/numpy_backend.py` and `scgvb/energy/jax_backend.py` handle both problems.
+`calcEnergy` returns the active numerator and norm. The closed-shell constant is excluded from the optimized numerator and added to the final total energy.
 
-`--energy-evaluation determinant` は全電子置換テーブルを一切生成しない。
-既存のJAX exterior-product評価器を拡張し、NumPy版を追加した。
-SCGVBの非直交軌道を直交基底上の行列式に展開し、Hamiltonianを作用させる。
-行列式係数は軌道とスピン係数から決まり、独立な最適化変数ではない。
-NumPy版はPySCFのFCI用Hamiltonian収縮ルーチンを使うが、FCI固有値問題は解かない。
-非直交行列式ペアの一般化Slater–Condon評価器とは別の方式である。
+`--energy-evaluation determinant` generates no electron-permutation tables.
+The existing JAX exterior-product evaluator was extended and a NumPy implementation added.
+Nonorthogonal SCGVB orbitals are expanded in determinants on an orthogonal basis, then the Hamiltonian is applied.
+Determinant coefficients follow from orbitals and spin coefficients; they are not independent optimization variables.
+NumPy uses PySCF's FCI Hamiltonian-contraction routines without solving an FCI eigenproblem.
+This differs from a generalized Slater–Condon evaluator for pairs of nonorthogonal determinants.
 
-計算量は基底の行列式空間にも依存するため、無制限には拡張できない。
-既定の `standard` ではNumPy/JAXとも各スピンの電子数は6以下とし、行列式係数配列、各次数の小行列式配列、
-primitiveスピン係数配列、変換後の二電子積分配列にそれぞれ200万要素の上限を設ける。
-12電子・12軌道の一重項（853,776行列式、132スピン関数）に対応する。
-JAX版では小行列式の多項式再帰とcheckpoint、一体演算子の二乗和によるHamiltonian作用、
-専用VJPにより、軌道数²×行列式数の中間配列とその逆伝播記録を避ける。
-詳細と持ち込み用実行例は [HPC_README.md](HPC_README.md) を参照。
-上限を超える場合は積分・スピン展開の生成前に停止する
-（HFによる空間選択はその前に実行される）。
+Cost also depends on the basis determinant space, so scaling is bounded.
+With the default `standard` profile, NumPy and JAX allow at most six electrons of each spin and cap determinant-coefficient arrays, minor arrays of each order, primitive spin-coefficient arrays, and transformed two-electron integral arrays at two million elements each.
+This supports a 12-electron/12-orbital singlet with 853,776 determinants and 132 spin functions.
+The JAX backend uses polynomial minor recursion, checkpointing, a sum of squared one-body operators for Hamiltonian action, and a custom VJP to avoid orbital-count²×determinant-count intermediates and their reverse-mode records.
+See [HPC_README.md](HPC_README.md) for details and portable execution examples.
+Excess sizes stop execution before integrals or spin expansions are generated, although HF space selection runs earlier.
 
-STO-3GのCH4ではn=8、8電子、一重項スピン関数14個、基底行列式4,900個。
-ベンゼンπ系ではn=6、6電子、スピン関数5個、基底行列式400個。
-これらはCASSCFと同じ変分空間を使うという意味ではない。
-旧 `permutation` 評価器も比較用に残り、サイズ上限を満たす活性空間にも使える。
-`--max-permutation-pairs` はこの旧方式だけに適用する。
+STO-3G CH4 has n=8, eight active electrons, 14 singlet spin functions, and 4,900 basis determinants.
+The benzene pi system has n=6, six electrons, five spin functions, and 400 basis determinants.
+These counts do not mean the same variational space as CASSCF.
+The old `permutation` evaluator remains for comparison and can evaluate active spaces within its size limit.
+`--max-permutation-pairs` applies only to that evaluator.
 
 ## Python API
 
@@ -228,59 +205,53 @@ STO-3GのCH4ではn=8、8電子、一重項スピン関数14個、基底行列�
 from calc_molecule import calculate
 
 result = calculate('Li 0 0 0; H 0 0 1.6',
-                   inactive_mos=[0],       # Pythonは0始まり
+                   inactive_mos=[0],       # Python indices are zero-based
                    active_mos=[1, 2, 3, 4, 5],
                    energy_evaluation='determinant', initial_guess='hf')
 ```
 
-低レベルAPIでは `prepare_active_space(mol, ...)` の戻り値を
-`SCWF_Energy(mol, compute_fci=False, active_space=space,
-energy_evaluation='determinant')` に渡す。`space=None` はfull版。
-活性空間指定時は `compute_fci=False` が必要。full FCIは固定閉殻近似と同じ
-変分問題ではないため、参照値として暗黙には実行しない。
+In the low-level API, pass the result of `prepare_active_space(mol, ...)` to `SCWF_Energy(mol, compute_fci=False, active_space=space, energy_evaluation='determinant')`.
+`space=None` selects the full-space calculation.
+Active-space calculations require `compute_fci=False`: full FCI is not the same variational problem as the frozen-closed-shell approximation, so it is not run implicitly as a reference.
 
-## 出力と軌道表示
+## Output and orbital display
 
-既存schema version 1にフィールドを追加している。
-`orbital_coefficients` は活性SCGVB軌道のAO係数（AO数×活性電子数）、
-`inactive_orbital_coefficients` は固定閉殻軌道を1本ずつ保存する。
-`optimization_basis_coefficients` と `optimization_orbital_coefficients` で
-最適化に用いた部分空間と変数も保存する。`active_space` に選択根拠・HF参照値が入る。
+Fields have been added to the existing schema version 1.
+`orbital_coefficients` contains active SCGVB AO coefficients (AO count × active-electron count); `inactive_orbital_coefficients` stores one column per frozen closed-shell orbital.
+`optimization_basis_coefficients` and `optimization_orbital_coefficients` also save the optimization subspace and variables.
+`active_space` records selection details and HF references.
 
-`electronic_numerator_hartree` は有効Hamiltonianの活性部分、
-`inactive_energy_hartree` は閉殻定数、`nuclear_energy_hartree` は核反発だけ。
-`wavefunction_norm` と勾配は、固定閉殻を除いた活性SCGVBの規約による。
+`electronic_numerator_hartree` is the active effective-Hamiltonian numerator, `inactive_energy_hartree` is the closed-shell constant, and `nuclear_energy_hartree` contains only nuclear repulsion.
+`wavefunction_norm` and gradients follow the active-SCGVB convention excluding frozen closed shells.
 
 ```bash
 python generate_orbitals.py benzene_pi.json --output-dir benzene_orbitals
 ```
 
-活性軌道を先に、続いて非活性軌道を1本ずつ出力する。
-HTMLとmanifestで非活性・二重占有軌道を区別する。
-古いfull版の結果ファイルも引き続き読み込める。
+Active orbitals are exported first, followed by one orbital per inactive column.
+HTML and the manifest distinguish inactive doubly occupied orbitals.
+Older full-space result files remain readable.
 
-## 検証
+## Validation
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m unittest discover -s tests -t . -p 'test_*.py' -v
 ```
 
-旧置換評価とのエネルギー・ノルム・複素ステップ勾配の一致、JAX自動微分との一致、
-特異な部分小行列での勾配、固定閉殻を含むfull SCGVBとの一致、
-PySCF CASCIの有効一電子積分・閉殻定数との一致をテストする。
-MO指定の検証、サイズ制限、最適化からJSON/Cube出力までの経路も対象。
+Tests check energy, norm, and complex-step gradients against the old permutation evaluator; agreement with JAX automatic differentiation; gradients at singular subminors; agreement with full SCGVB including frozen closed shells; and effective one-electron integrals/closed-shell constants against PySCF CASCI.
+MO-selection validation, size limits, and the path from optimization to JSON/Cube output are also tested.
 
-付属の構造・STO-3G・HF初期値・seed=40・JAX CPUによる実測：
+Measurements using the included geometries, STO-3G, HF initial guesses, seed=40, and JAX CPU:
 
-| 系 | HF / Eh | 固定閉殻SCGVB / Eh | 同じ固定閉殻のCASCI / Eh | 最大絶対勾配 |
+| System | HF / Eh | Frozen-closed-shell SCGVB / Eh | CASCI with the same frozen closed shells / Eh | Maximum absolute gradient |
 |---|---:|---:|---:|---:|
-| CH4、8活性電子 | -39.726724240941 | -39.794445033744 | -39.805558524322 | 1.04e-7 |
-| C6H6、6π電子 | -227.890600566936 | -227.989954186596 | -227.997024016905 | 5.49e-9 |
+| CH4, eight active electrons | -39.726724240941 | -39.794445033744 | -39.805558524322 | 1.04e-7 |
+| C6H6, six pi electrons | -227.890600566936 | -227.989954186596 | -227.997024016905 | 5.49e-9 |
 
-両者ともノルム誤差は6e-16以下。SCGVBエネルギーはHF以下・同じ空間のCASCI以上に
-あることを確認した。CASCIは今回の検証で別途実行したもので、通常の計算には含まれない。
-局所最適化の結果であり、大域的最小や他の構造・基底での収束を保証しない。
-結果と参照値は `examples/active_space/` に保存している。
+Norm errors were at most 6e-16 in both cases. SCGVB energies were verified to lie below HF and above CASCI in the same space.
+CASCI was run separately for validation and is not part of normal calculations.
+These are local optimization results, not guarantees of global minima or convergence for other geometries or bases.
+Results and references are stored locally in `examples/active_space/`.
 
 ## Explicit atomic-orbital targets
 

@@ -1,32 +1,31 @@
 # Spin Coupled Wave Function
 
-このリポジトリにはプログラム本体、利用説明、分子構造・TOML入力例を収録しています。
-テストコード、検証データ、計算結果、ログは含めていません。
-説明書にあるテスト実行や保存済み計算結果からの再開には、別途それらのファイルが必要です。
+This repository contains the program, usage documentation, molecular geometries, and example TOML inputs.
+Test code, validation data, calculation results, and logs are excluded.
+Tests and restarts from saved calculations described in the documentation require those files separately.
 
-## コード構成
+## Code organization
 
-ライブラリは `scgvb` パッケージにまとめています。NumPyとJAXの計算方式・最適化アルゴリズムは共通のパッケージから利用できます。
+The library is organized as the `scgvb` package. NumPy and JAX backends and the optimization algorithms are available within the same package.
 
 ```text
 scgvb/
-  energy/        # NumPy・JAXのエネルギー評価、行列式、複合小行列式
-  orbitals/      # 活性空間、AO・π軌道、初期軌道、再開、分子積分
-  optimization/  # 同時・交互・一軌道・core最適化、スピン初期値、診断
-  spin/          # スピン関数、分枝図、電子配列、置換表現
-  io/            # TOML入力、軌道出力、軌道ビューア
-  analysis/      # 電子密度、原子電荷、結合次数
-  cli/           # 分子計算・二原子分子スキャンのコマンド処理
-  benchmarks/    # 性能測定と評価器比較
-tools/           # HPC配布アーカイブ作成
-hpc/             # 実行環境確認、ジョブスクリプト、診断コマンド
-examples/        # 分子構造とTOML入力例
-tests/           # ローカルの回帰テスト（GitHub・配布対象外）
+  energy/        # NumPy/JAX energy evaluation, determinants, compound minors
+  orbitals/      # Active spaces, AO/pi orbitals, initial guesses, restarts, molecular integrals
+  optimization/  # Simultaneous/alternating/single-orbital/core optimization, initial spin, diagnostics
+  spin/          # Spin functions, branch diagrams, electron arrangements, permutation representations
+  io/            # TOML input, orbital export, orbital viewer
+  analysis/      # Electron density, atomic charges, bond orders
+  cli/           # Molecular calculations and diatomic-scan commands
+  benchmarks/    # Performance measurements and evaluator comparisons
+tools/           # HPC source distribution archives
+hpc/             # Environment checks, job scripts, diagnostic commands
+examples/        # Molecular geometries and TOML inputs
+tests/           # Local regression tests (excluded from GitHub and distributions)
 ```
 
-これまでの `python calc_molecule.py`、`python calc_diatomic_mol.py`、
-`python generate_orbitals.py`、`python build_hpc_bundle.py` は引き続き利用できます。
-Pythonからのインポートは、次のようにパッケージ名を指定してください。
+Existing commands `python calc_molecule.py`, `python calc_diatomic_mol.py`, `python generate_orbitals.py`, and `python build_hpc_bundle.py` remain available.
+Use package-qualified names when importing from Python:
 
 ```python
 from scgvb.cli.molecule import calculate, build_molecule
@@ -34,24 +33,27 @@ from scgvb.energy.numpy_backend import SCWF_Energy
 from scgvb.orbitals.active_space import prepare_active_space
 ```
 
-`python -m scgvb.cli.molecule` や `python -m scgvb.analysis.population` でも実行できます。
-パッケージをインストールする場合は `python -m pip install .`、開発中は
-`python -m pip install -e .` を使います。インストール後は `scgvb-calculate`、
-`scgvb-diatomic`、`scgvb-orbitals`、`scgvb-population` コマンドも利用できます。
-JAXは `requirements-cpu.txt` または `requirements-gpu-cuda13.txt` で追加してください。
+You can also run `python -m scgvb.cli.molecule` or `python -m scgvb.analysis.population`.
+Install the package with `python -m pip install .`, or use `python -m pip install -e .` during development.
+Installation also provides the `scgvb-calculate`, `scgvb-diatomic`, `scgvb-orbitals`, and `scgvb-population` commands.
+Add JAX using `requirements-cpu.txt` or `requirements-gpu-cuda13.txt`.
 
-ローカルのテスト一式は `python -m unittest discover -s tests -t . -p 'test_*.py'` で実行します。
+Run the local test suite with `python -m unittest discover -s tests -t . -p 'test_*.py'`.
 
-## 入力ファイルからの実行
+## Running from an input file
 
-分子・基底関数・活性空間・最適化設定をTOMLファイルにまとめられます。
+A TOML file can collect the molecule, basis, active space, and optimization settings.
 
 ```bash
 python calc_molecule.py examples/inputs/allyl.toml
 ```
 
-アリルラジカル（cc-pVDZ、3π電子、core緩和）の設定例を同梱しています。
-[入力ファイルの書き方](INPUT_FILE.md)を参照してください。既存のCLIも使用できます。
+An allyl-radical example (cc-pVDZ, three pi electrons, core relaxation) is included.
+See [Input file format](INPUT_FILE.md). The existing CLI is also available.
+
+Geometry optimization supports energy-only BOBYQA and an internal-coordinate quasi-Newton method with numerical gradients.
+Install `pip install -r requirements-geometry.txt` and select the method in the input's `[geometry]` section.
+See [Geometry optimization](GEOMETRY_OPTIMIZATION.md) for automatic internal coordinates, orbital projection between geometries, convergence criteria, and examples.
 
 Codes for "Augmented Lagrangian method for optimizing non-orthogonal orbitals"
 
@@ -142,24 +144,24 @@ memory-bounded evaluator.
 
 Use `--initial-guess hf` for RHF/ROHF starting orbitals, or `--initial-guess core` for core-Hamiltonian orbitals. The default `random` retains the previous initialization. See `MOLECULE_INTERFACE.md`.
 
-## 初期スピン結合係数と最適化方式
+## Initial spin-coupling coefficients and optimization methods
 
-軌道初期値、スピン結合係数 `Cs` の初期値、最適化方式は独立に選べます。
-`Cs` はスピン結合基底の係数であり、軌道と `Cs` から生成する行列式展開係数とは別です。
+Initial orbitals, initial spin-coupling coefficients `Cs`, and the optimization method can be selected independently.
+`Cs` contains coefficients in the spin-coupled basis, distinct from the determinant-expansion coefficients constructed from orbitals and `Cs`.
 
-| TOML設定 | 既定値 | 選択できる動作 |
+| TOML setting | Default | Behavior |
 |---|---|---|
-| `[calculation] initial_spin_guess` | `"uniform"` | 新規計算は等係数 `1/sqrt(fs)`。`"eigen"` は初期軌道を固定してスピンの一般化固有値問題を解く。 |
-| `[calculation] initial_spin_overlap_cutoff` | `1e-10` | 初期スピン求解の計量固有値に対する相対閾値。最適化用の閾値とは独立。 |
-| `[optimizer] method` | `"simultaneous"` | 従来の同時最適化。`"alternating"` は固定軌道でのスピン求解と、係数を固定した軌道更新を交互に行う。 |
-| `[optimizer] orbital_update` | `"bfgs"` | 交互最適化の軌道更新。`"wavefunction"` は波動関数計量で前処理し、`"single_orbital"` は一軌道ずつ一般化固有値問題を解く。 |
-| `[optimizer] spin_solver` | `"canonical"` | 交互最適化のスピン求解。`"projected"` は実際の波動関数の保持部分空間で、中心化したHamiltonianを解く。 |
-| `[optimizer] orbital_micro_iterations` | `0` | 軌道更新の途中でスピンを解き直す間隔。BFGS系では採用ステップ数、一軌道更新では固有値求解の試行回数で数える。`0` は全軌道ブロック終了後に求解する。 |
-| `[optimizer] joint_correction` | `false` | 交互更新の末尾に、軌道・スピンの同時補正を追加する。 |
-| `[optimizer] joint_correction_start` | `1` | 同時補正を追加し始めるスイープ番号。交互最適化もその後引き続き実施する。 |
+| `[calculation] initial_spin_guess` | `"uniform"` | New calculations start with equal coefficients `1/sqrt(fs)`. `"eigen"` solves the generalized spin eigenproblem at fixed initial orbitals. |
+| `[calculation] initial_spin_overlap_cutoff` | `1e-10` | Relative metric-eigenvalue cutoff for initial spin solving, independent of the optimization cutoff. |
+| `[optimizer] method` | `"simultaneous"` | The existing simultaneous optimizer. `"alternating"` alternates spin solving at fixed orbitals with orbital updates at fixed coefficients. |
+| `[optimizer] orbital_update` | `"bfgs"` | Orbital update for alternating optimization. `"wavefunction"` uses wavefunction-metric preconditioning; `"single_orbital"` solves generalized eigenproblems one orbital at a time. |
+| `[optimizer] spin_solver` | `"canonical"` | Spin solver for alternating optimization. `"projected"` solves a centered Hamiltonian in the retained physical wavefunction subspace. |
+| `[optimizer] orbital_micro_iterations` | `0` | Interval between spin solves during orbital updates: accepted steps for BFGS-based methods, attempted eigenproblem solves for single-orbital updates. `0` solves after the complete orbital block. |
+| `[optimizer] joint_correction` | `false` | Add a simultaneous orbital/spin correction after alternating updates. |
+| `[optimizer] joint_correction_start` | `1` | First sweep that includes joint correction. Alternating optimization continues afterward. |
 
-初期スピン係数を固有値問題から決め、交互最適化する設定例です。
-分子・基底関数・活性空間は使用する入力ファイルで指定します。
+Example settings for initializing spin coefficients from an eigenproblem and using alternating optimization follow.
+Specify the molecule, basis, and active space in the input file.
 
 ```toml
 [calculation]
@@ -177,23 +179,18 @@ max_inner_iterations = 12
 joint_correction = false
 ```
 
-この例は一軌道更新を3回試行するごとにスピン係数を解き直し、1サイクルの軌道試行を
-最大12回に制限します。`initial_spin_guess = "eigen"` は従来の `simultaneous` にも使えます。
-`initial_json` による再開では、`"uniform"` は保存された `Cs` を保持し、
-`"eigen"` を明示すると読み込んだ軌道上で係数を解き直します。
+This example resolves spin coefficients after every three attempted single-orbital updates and limits each cycle to 12 orbital attempts.
+`initial_spin_guess = "eigen"` also works with the existing `simultaneous` optimizer.
+For `initial_json` restarts, `"uniform"` retains the saved `Cs`; explicitly selecting `"eigen"` recomputes coefficients at the loaded orbitals.
 
-`wavefunction`、`single_orbital`、`projected` と同時補正はdeterminant評価を必要とします。
-同時補正にはさらに `method = "alternating"` と `spin_solver = "projected"` が必要です。
-詳細な制約、CLI/Python API、ノルム保護と収束判定は
-[交互最適化の説明](INPUT_FILE.md#同時最適化と交互最適化)と
-[スピン初期値・同時補正の開始時期](INPUT_FILE.md#スピン初期値と同時補正の開始時期を独立に指定する)を参照してください。
+`wavefunction`, `single_orbital`, `projected`, and joint correction require determinant evaluation.
+Joint correction additionally requires `method = "alternating"` and `spin_solver = "projected"`.
+See [Alternating optimization](INPUT_FILE.md#simultaneous-and-alternating-optimization) and [Spin initialization and correction start](INPUT_FILE.md#independent-spin-initialization-and-joint-correction-start) for constraints, CLI/Python APIs, norm protection, and convergence criteria.
 
-残差方向を追加する `CoupledOptimization.adaptive_correction` と、軌道だけを減衰する
-`SpinResponseCorrection.response_correction` は、明示的に呼ぶ実験用APIです。
-通常の `joint_correction = true` は従来の最大6方向の補正を使い、これらの実験方式へ自動では切り替わりません。
-保存状態から同時補正だけを比較する診断スクリプトは [HPC_README.md](HPC_README.md#保存状態から同時補正だけを比較する)に記載しています。
-Fe(CO)5の試行では収束が得られておらず、同梱の
-[段階的補正の入力例](examples/inputs/fe_co5_staged_joint.toml)は比較用の設定です。
+`scgvb.optimization.coupled.adaptive_correction`, which adds residual directions, and `scgvb.optimization.spin_response.response_correction`, which damps only orbital components, are experimental APIs invoked explicitly.
+The standard `joint_correction = true` uses the existing correction with up to six directions and does not switch automatically to these experimental methods.
+Diagnostic scripts comparing joint corrections from the same saved state are described in [HPC_README.md](HPC_README.md#comparing-joint-corrections-from-a-saved-state).
+Fe(CO)5 trials did not converge; the included [staged-correction input](examples/inputs/fe_co5_staged_joint.toml) is a comparison configuration.
 
 ## Fixed inactive orbitals / active-space SCGVB
 
@@ -256,7 +253,6 @@ performs HF and validates the active-space size; it does not establish SCGVB
 convergence. For a nonplanar geometry, select local pi normals and validate its
 coordination with `--check` before optimization.
 
-14電子・14軌道の一重項を扱う場合は、行列式評価器と
-`--determinant-size-profile large14` を明示的に指定する。既定は従来の `standard`。
-TOML・Python API・再開・非活性軌道緩和の設定は [ACTIVE_SPACE.md](ACTIVE_SPACE.md) を参照。
-フェナジンの通常コード用入力例は `examples/inputs/phenazine14.toml`。
+For a 14-electron/14-orbital singlet, explicitly select determinant evaluation and `--determinant-size-profile large14`. The existing `standard` profile remains the default.
+See [ACTIVE_SPACE.md](ACTIVE_SPACE.md) for TOML, Python API, restart, and inactive-orbital relaxation settings.
+The phenazine input for the standard calculation code is `examples/inputs/phenazine14.toml`.

@@ -70,7 +70,7 @@ def calculate(atom, basis='sto-3g', charge=0, multiplicity=1, unit='Angstrom',
               orbital_micro_iterations=0, orbital_update='bfgs', spin_solver='canonical',
               orbital_overlap_cutoff=1e-10, joint_correction=False, joint_correction_start=1,
               initial_spin_guess='uniform', initial_spin_overlap_cutoff=1e-10,
-              determinant_size_profile='standard'):
+              determinant_size_profile='standard', allow_geometry_change=False):
     """Return JSON-compatible results. HF runs for HF guesses or active-space selection; no FCI optimization.
 
     C columns correspond to the nonorthogonal orbitals in PySCF's AO order;
@@ -107,7 +107,8 @@ def calculate(atom, basis='sto-3g', charge=0, multiplicity=1, unit='Angstrom',
     restart = None
     if initial_json is not None:
         from scgvb.orbitals.restart import restart_orbitals
-        space, restart_C, restart_Cs, restart_info = restart_orbitals(mol, space, initial_json)
+        space, restart_C, restart_Cs, restart_info = restart_orbitals(
+            mol, space, initial_json, allow_geometry_change=allow_geometry_change)
         restart = (restart_C, restart_Cs, restart_info)
     if optimize_core and (space is None or space.inactive.shape[1] == 0):
         raise ValueError('--optimize-core requires a nonempty inactive/core space')
@@ -281,6 +282,20 @@ def main(argv=None):
     parser.add_argument('--max-permutation-pairs', type=int, default=100000)
     parser.add_argument('--active-space', choices=('full', 'benzene-pi', 'pi', 'ao'), default='full')
     parser.add_argument('--initial-json', type=Path, help='Saved SCGVB JSON; projects orbitals between bases and restores spin coefficients')
+    parser.add_argument('--allow-geometry-change', action=argparse.BooleanOptionalAction, default=False,
+                        help='Allow initial-json at a different geometry; project only the initial wavefunction')
+    parser.add_argument('--geometry-method', choices=('none', 'bobyqa', 'quasi-newton'), default='none')
+    parser.add_argument('--geometry-coordinates', choices=('auto', 'dlc', 'tric', 'cartesian'), default='auto')
+    parser.add_argument('--geometry-bonds', nargs='+', help='Override automatic bonds, e.g. 1-2 2-3 (one-based)')
+    parser.add_argument('--geometry-max-iterations', type=int, default=100)
+    parser.add_argument('--geometry-max-evaluations', type=int, default=2000)
+    parser.add_argument('--geometry-difference-step', type=float, default=1e-3, help='Central difference step in Bohr')
+    parser.add_argument('--geometry-gradient-tolerance', type=float, default=3e-4, help='RMS nuclear gradient in Eh/Bohr')
+    parser.add_argument('--geometry-energy-tolerance', type=float, default=1e-6, help='Quasi-Newton energy tolerance in Eh')
+    parser.add_argument('--geometry-step-tolerance', type=float, default=1.2e-3, help='RMS displacement tolerance in Angstrom')
+    parser.add_argument('--geometry-trust-radius', type=float, default=0.1, help='Initial step radius in Angstrom')
+    parser.add_argument('--geometry-max-radius', type=float, default=0.3, help='Maximum step/chart radius in Angstrom')
+    parser.add_argument('--geometry-final-radius', type=float, default=1e-4, help='BOBYQA final scaled coordinate radius in Angstrom')
     parser.add_argument('--orbitals', nargs='+', help='MINAO target rows: 1 2px 2py A (roles A/I/F)')
     parser.add_argument('--ao-electrons', type=int, help='Assert selected active electron count')
     parser.add_argument('--ao-threshold', type=float, default=.2)
@@ -321,6 +336,15 @@ def main(argv=None):
             raise ValueError('Specify an input file, --atom, or --xyz')
         if args.initial_json is not None and args.initial_json.resolve() == args.output.resolve():
             raise ValueError('Restart source and output must be different files')
+        if args.geometry_method != 'none':
+            from scgvb.optimization.geometry import validate_geometry_options
+            validate_geometry_options(
+                method=args.geometry_method, coordinates=args.geometry_coordinates,
+                max_iterations=args.geometry_max_iterations, max_evaluations=args.geometry_max_evaluations,
+                difference_step=args.geometry_difference_step, gradient_tolerance=args.geometry_gradient_tolerance,
+                energy_tolerance=args.geometry_energy_tolerance, step_tolerance=args.geometry_step_tolerance,
+                trust_radius=args.geometry_trust_radius, max_radius=args.geometry_max_radius,
+                final_radius=args.geometry_final_radius)
         from scgvb.optimization.alternating import validate_options
         validate_options(args.optimization_method, args.spin_overlap_cutoff, args.orbital_micro_iterations,
                          args.orbital_update, args.spin_solver, args.orbital_overlap_cutoff, args.joint_correction,
@@ -338,7 +362,9 @@ def main(argv=None):
             space = prepare_active_space(mol, args.frozen_core, inactive, active, args.active_space, args.pi_electrons, args.pi_normal_mode, args.orbitals, args.ao_electrons, args.ao_threshold)
             if args.initial_json is not None:
                 from scgvb.orbitals.restart import restart_orbitals
-                space, _, _, _ = restart_orbitals(mol, space, args.initial_json)
+                space, _, _, _ = restart_orbitals(
+                    mol, space, args.initial_json,
+                    allow_geometry_change=args.allow_geometry_change or args.geometry_method != 'none')
             size = calculation_size(mol, space)
             size['active_space'] = {'selection': 'full'} if space is None else space.metadata
             if args.optimize_core and (space is None or space.inactive.shape[1] == 0):
@@ -355,12 +381,16 @@ def main(argv=None):
             size['orbital_update'] = args.orbital_update if args.optimization_method == 'alternating' else None
             size['orbital_overlap_cutoff'] = args.orbital_overlap_cutoff if args.orbital_update == 'single_orbital' else None
             size['spin_solver'] = args.spin_solver if args.optimization_method == 'alternating' else None
+            if args.geometry_method != 'none':
+                from scgvb.optimization.coordinates import GeometryCoordinates
+                coordinates = GeometryCoordinates(mol, args.geometry_coordinates, bonds=args.geometry_bonds)
+                size['geometry_optimization'] = dict(method=args.geometry_method, **coordinates.metadata)
             if args.energy_evaluation == 'determinant' or args.optimize_core:
                 from scgvb.energy.determinants import check_determinant_size
                 check_determinant_size(size['active_orbital_dimension'], size['active_electrons'], mol.spin, profile=args.determinant_size_profile)
             print(json.dumps(size, indent=2))
             return 0
-        result = calculate(atom, basis=args.basis, charge=args.charge,
+        calculation_options = dict(basis=args.basis, charge=args.charge,
                            multiplicity=args.multiplicity, unit=args.unit, backend=args.backend,
                            device=args.device, seed=args.seed, epsilon=args.epsilon,
                            max_outer_iterations=args.max_outer_iterations,
@@ -383,10 +413,24 @@ def main(argv=None):
                            orbital_micro_iterations=args.orbital_micro_iterations,
                            orbital_update=args.orbital_update, spin_solver=args.spin_solver,
                            orbital_overlap_cutoff=args.orbital_overlap_cutoff, joint_correction=args.joint_correction,
-                           joint_correction_start=args.joint_correction_start)
+                           joint_correction_start=args.joint_correction_start,
+                           allow_geometry_change=args.allow_geometry_change)
+        if args.geometry_method == 'none':
+            result = calculate(atom, **calculation_options)
+        else:
+            from scgvb.optimization.geometry import optimize_geometry
+            result = optimize_geometry(
+                atom, calculation_options=calculation_options, method=args.geometry_method,
+                coordinates=args.geometry_coordinates, bonds=args.geometry_bonds,
+                max_iterations=args.geometry_max_iterations, max_evaluations=args.geometry_max_evaluations,
+                difference_step=args.geometry_difference_step, gradient_tolerance=args.geometry_gradient_tolerance,
+                energy_tolerance=args.geometry_energy_tolerance, step_tolerance=args.geometry_step_tolerance,
+                trust_radius=args.geometry_trust_radius, max_radius=args.geometry_max_radius,
+                final_radius=args.geometry_final_radius, output=args.output, provenance=provenance)
         if provenance is not None:
             result['input_file'] = provenance
-        args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')
+        if args.geometry_method == 'none':
+            args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')
         print(f"Total energy: {result['total_energy_hartree']:.12f} Eh")
         print(f"Norm error: {result['normalization_error']:.3e}")
         from scgvb.analysis.population import print_populations
@@ -394,6 +438,12 @@ def main(argv=None):
         for message in result['warnings']:
             print(f'Warning: {message}', file=sys.stderr)
         print(f'Result: {args.output.resolve()}')
+        if args.geometry_method != 'none':
+            info = result['geometry_optimization']
+            print(f"Geometry: {info['status']} ({info['energy_evaluations']} energy evaluations)")
+            if not info['converged']:
+                print(f"Geometry optimization stopped: {info['message']}", file=sys.stderr)
+                return 1
         return 0
     except (ValueError, RuntimeError, FloatingPointError, OSError, ImportError) as exc:
         print(f'Calculation failed: {exc}', file=sys.stderr)
