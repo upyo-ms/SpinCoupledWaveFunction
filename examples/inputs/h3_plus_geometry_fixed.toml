@@ -1,0 +1,22 @@
+# Keep atom 1 and the initial 1-2 distance fixed; relax all other physical variables.
+[molecule]
+atom = "H 0 0 0; H 0 0 1.05; H 0.9 0 0.45"
+basis = "sto-3g"
+charge = 1
+multiplicity = 1
+
+[calculation]
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[geometry]
+method = "bobyqa" # Use "quasi-newton" for numerical gradients + BFGS.
+coordinates = "auto"
+freeze = ["xyz 1", "distance 1 2"]
+# set = ["angle 2 1 3 60.0"] # Optional explicit target, in degrees.
+constraint_tolerance = 1e-7
+max_evaluations = 700
+
+[output]
+path = "h3_plus_geometry_fixed.json"
+verbose = 1

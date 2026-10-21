@@ -1,6 +1,6 @@
 # Explicit MINAO targets. pz is along the input Cartesian z axis.
 [molecule]
-xyz = "../ch4.xyz"
+xyz = "../bh3.xyz"
 #basis = "sto-3g"
 basis = "cc-pVDZ"
 multiplicity = 1
@@ -10,15 +10,24 @@ backend = "jax"
 device = "cpu"
 energy_evaluation = "determinant"
 #initial_guess = "core"
-initial_json = "ch4_ao.json"
+initial_json = "bh3_ao_sto3g.json"
 
 [active_space]
 mode = "ao"
 orbitals = [
-    "1 2s 2p A", "2 1s A", "3 1s A", "4 1s A","5 1s A", 
+    "1 1s I", "1 2s 2p A", "2 1s A", "3 1s A", "4 1s A",
 ]
-ao_electrons = 8
+ao_electrons = 6
 optimize_core = true # Relax sigma/inactive space, keeping the selected 1s core frozen.
 
+[geometry]
+method = "bobyqa"
+coordinates = "auto"
+max_evaluations = 200
+trust_radius = 0.05
+max_radius = 0.2
+final_radius = 0.0001
+
 [output]
-path = "ch4_ao_ccpvdz.json"
+#path = "bh3_ao_sto3g.json"
+path = "bh3_ao_ccpvdz.json"

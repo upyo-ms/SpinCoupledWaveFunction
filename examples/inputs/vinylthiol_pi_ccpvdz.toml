@@ -1,0 +1,28 @@
+# SCGVB: 4 active electrons / 4 nonorthogonal orbitals / active basis dimension 3.
+# Nuclear geometry stays fixed. Use --optimize-core for inactive orbital relaxation.
+[molecule]
+xyz = "../vinylthiol.xyz"
+basis = "cc-pvdz"
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "ao"
+orbitals = ["1 2pz A", "2 2pz A", "3 3pz A"]
+ao_electrons = 4
+optimize_core = false
+
+[optimizer]
+epsilon = 1e-8
+core_max_iterations = 50
+core_gradient_tolerance = 1e-6
+core_response = false
+
+[output]
+path = "vinylthiol_pi_ccpvdz.json"
+verbose = 1

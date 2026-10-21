@@ -1,0 +1,20 @@
+# Optional SCGVB internal response during orbital relaxation.
+[molecule]
+atom = "Li 0 0 0; H 0 0 1.6"
+basis = "sto-3g"
+
+[calculation]
+initial_guess = "hf"
+energy_evaluation = "determinant"
+
+[active_space]
+inactive_mos = [1]
+active_mos = [2, 3]
+optimize_core = true
+
+[optimizer]
+core_response = true
+
+[output]
+path = "lih_core_response.json"
+verbose = 1

@@ -1,0 +1,33 @@
+# Explicit MINAO targets. pz is along the input Cartesian z axis.
+[molecule]
+xyz = "../ch4.xyz"
+#basis = "sto-3g"
+basis = "cc-pVDZ"
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+#initial_guess = "core"
+initial_json = "ch4_ao.json"
+
+[active_space]
+mode = "ao"
+orbitals = [
+    "1 2s 2p A", "2 1s A", "3 1s A", "4 1s A","5 1s A",
+]
+ao_electrons = 8
+optimize_core = true # Relax sigma/inactive space, keeping the selected 1s core frozen.
+
+[geometry]
+method = "quasi-newton"
+coordinates = "auto"
+max_iterations = 50
+max_evaluations = 400
+difference_step = 0.001
+gradient_tolerance = 0.0003
+
+
+[output]
+path = "ch4_ao_ccpvdz_newton_opt.json"

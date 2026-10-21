@@ -33,6 +33,8 @@
 # Cluster-specific batch scripts are local only.
 /hpc/rikyu*
 /hpc/*.sbatch
+# This input resumes a specific rikyu job and writes to its local run directory.
+/examples/inputs/b2h6_geometry_bobyqa.toml
 
 # Tests and local artifacts stay on this machine.
 test.py

@@ -57,6 +57,39 @@ H  0.0 0.0 1.6
 unit = "Angstrom"
 ```
 
+### Coordinates from result JSON
+
+`molecule.xyz` accepts a single-frame XYZ file or an SCGVB result `.json` file.
+For JSON, it reads only the top-level `molecule.atoms`, using
+`molecule.coordinate_unit` (Angstrom if absent) and converting to the input `unit`.
+It does not select a history entry or a checkpoint automatically. Multi-frame
+XYZ trajectories still require extracting a single frame first.
+Basis, charge, multiplicity, and active-space settings come from the new input.
+
+To reuse both coordinates and the wavefunction, specify the result in both places:
+
+```toml
+[molecule]
+xyz = "optimized_sto3g.json"
+basis = "cc-pvdz"
+
+[calculation]
+initial_json = "optimized_sto3g.json"
+```
+
+Keep the required active-space settings in the new input. `xyz` alone imports
+coordinates; `initial_json` supplies orbital and spin-coupling coefficients.
+All file paths are relative to the TOML file. Use a different output path to
+preserve the source file.
+
+To restart after changing coordinates, use `xyz = "slightly_changed.xyz"`
+(or a different geometry JSON) with `initial_json = "previous.json"`.
+The input coordinates are retained and the saved wavefunction is projected onto
+them by default. Set `calculation.allow_geometry_change = false` to require
+matching coordinates instead. Atom types and order must still match.
+The output `geometry_input` records the coordinate source and selected JSON field;
+`calculation.initialization` records the wavefunction source and projection policy.
+
 ## Settings
 
 Omitted settings use existing CLI defaults. Key names use underscores.
@@ -66,12 +99,22 @@ Omitted settings use existing CLI defaults. Key names use underscores.
 | `molecule` | `atom` or `xyz` (required), `basis`, `charge`, `multiplicity`, `unit` |
 | `calculation` | `backend`, `device`, `energy_evaluation`, `initial_guess`, `initial_json`, `allow_geometry_change`, `seed`, `initial_perturbation`, `initial_spin_guess`, `initial_spin_overlap_cutoff`, `determinant_size_profile` |
 | `active_space` | `mode`, `pi_electrons`, `pi_normal_mode`, `frozen_core`, `inactive_mos`, `active_mos`, `optimize_core`, `orbitals`, `ao_electrons`, `ao_threshold` |
-| `optimizer` | `method`, `spin_overlap_cutoff`, `orbital_overlap_cutoff`, `orbital_micro_iterations`, `orbital_update`, `spin_solver`, `joint_correction`, `joint_correction_start`, `epsilon`, `max_outer_iterations`, `max_inner_iterations`, `core_max_iterations`, `core_gradient_tolerance`, `max_permutation_pairs` |
+| `optimizer` | `method`, `spin_overlap_cutoff`, `orbital_overlap_cutoff`, `orbital_micro_iterations`, `orbital_update`, `spin_solver`, `joint_correction`, `joint_correction_start`, `epsilon`, `max_outer_iterations`, `max_inner_iterations`, `core_max_iterations`, `core_gradient_tolerance`, `second_order`, `second_order_fallback`, `core_response` (legacy alias), `max_permutation_pairs` |
 | `output` | `path`, `verbose` |
-| `geometry` | `method`, `coordinates`, `bonds`, `max_iterations`, `max_evaluations`, `difference_step`, `gradient_tolerance`, `energy_tolerance`, `step_tolerance`, `trust_radius`, `max_radius`, `final_radius` |
+| `geometry` | `method`, `coordinates`, `bonds`, `symmetry_operations`, `freeze`, `set`, `constraint_tolerance`, `restart_json`, `max_seconds`, `max_iterations`, `max_evaluations`, `difference_step`, `gradient_tolerance`, `energy_tolerance`, `step_tolerance`, `trust_radius`, `max_radius`, `final_radius` |
 
-`calculation.allow_geometry_change = true` allows orbital projection from `initial_json` at a different geometry.
+`calculation.allow_geometry_change` defaults to `true`: `initial_json` is projected onto the input geometry when coordinates differ. Use `false` to require a match.
+`geometry.freeze = ["xyz 1", "distance 2 3"]` holds specified quantities at their input values.
+`geometry.set = ["angle 2 1 3 105"]` fixes explicit targets (Angstrom/degrees).
+Both BOBYQA and quasi-Newton support these settings; see
+[fixed geometry degrees of freedom](GEOMETRY_OPTIMIZATION.md#fixed-positions-distances-angles-and-dihedrals).
 Select geometry optimization with `[geometry] method = "bobyqa"` or `"quasi-newton"`.
+BOBYQA accepts `coordinates = "symmetry"` with a string list of Cartesian
+`symmetry_operations`, for example `["-x,y,z", "x,-y,z", "x,y,-z"]` for D2h.
+`geometry.restart_json` resumes a saved geometry checkpoint, including its
+electronic state and disk evaluation cache. `geometry.max_seconds` limits
+wall time per invocation between electronic solves. See
+[Geometry optimization](GEOMETRY_OPTIMIZATION.md#geometry-restart-and-time-limits).
 Omitting the method or using `"none"` selects a single-point calculation.
 See [Geometry optimization](GEOMETRY_OPTIMIZATION.md) for units, internal coordinates, and convergence criteria.
 
@@ -87,6 +130,51 @@ max_inner_iterations = 1000
 core_max_iterations = 50
 core_gradient_tolerance = 1e-6
 ```
+
+Core relaxation normalizes each initial augmented-Hessian (AH) Davidson direction,
+including the previous macro iteration's correction. This prevents a small but
+useful direction from being discarded by the AH overlap cutoff near convergence.
+The physical rotation is still solved by the AH method with the same step limits
+and convergence thresholds;
+`core_optimization.ah_seed_history` records the seed source and scale.
+
+The orbital step cap shrinks by a factor of 0.3 only for an energy increase
+larger than the core energy tolerance (1e-9 Eh). On an energy plateau, an
+unconverged orbital gradient instead restores the cap geometrically toward
+its configured maximum; a converged gradient holds the cap. A resolved energy
+decrease also restores it. This avoids shrinking every step simply because the
+energy change is small. AH trust checks and the full orbital-gradient threshold
+remain active. `core_optimization.ah_step_history` records these decisions.
+
+Optional `[optimizer] second_order = true` enables analytic joint C/Cs Newton
+corrections in each internal SCGVB solve. With `optimize_core = true`, it also
+adds the internal response to the outer orbital Hessian. With
+`optimize_core = false`, the internal corrections remain active. The default is
+`false`; CLI `--second-order` / `--no-second-order` overrides a file setting.
+The old `core_response` key and `--[no-]core-response` flags are aliases for the
+same common option; old enabled settings now include internal corrections too.
+Contradictory TOML/API aliases are rejected; an explicit CLI flag takes
+precedence over the file regardless of which spelling it uses. This bounded
+CPU method retains the convergence criteria. See [second-order SCGVB
+corrections](SECOND_ORDER.md) for the method, allocation limit and diagnostics.
+
+To try the existing optimizer first and enable second-order corrections only
+after electronic nonconvergence, set:
+
+```toml
+[optimizer]
+second_order = false
+second_order_fallback = true
+```
+
+The retry is made once per electronic calculation, with the same iteration
+limits and convergence criteria. It applies with either `optimize_core` setting,
+including electronic evaluations during geometry optimization. `second_order =
+true` still enables corrections from the start. Automatic retry defaults to
+`false`; use `--second-order-fallback` / `--no-second-order-fallback` to override
+the input, or `calculate(..., second_order_fallback=True)` in Python. See
+[automatic retry](SECOND_ORDER.md#automatic-retry-after-nonconvergence) for seed
+selection, size limits, and result records.
 
 ## Simultaneous and alternating optimization
 
@@ -295,7 +383,8 @@ path = "thiophene_ccpvdz.json" # Use a name different from the source
 
 `initial_json` overrides `initial_guess` and `initial_perturbation` and loads saved SCGVB orbitals, spin-coupling coefficients, inactive orbitals, and the active basis.
 Atom order, charge, multiplicity, active-electron count, inactive-orbital count, and frozen-F-orbital count must match.
-By default geometry must also match within 1e-7 Bohr. Explicit `allow_geometry_change = true` permits projection to a changed geometry; atom reordering is not supported.
+Changed geometry is allowed by default: the input coordinates are retained and the saved wavefunction is projected onto them.
+With `allow_geometry_change = false`, coordinates must match within 1e-7 Bohr. Atom reordering is not supported.
 See [Geometry optimization](GEOMETRY_OPTIMIZATION.md#wavefunction-transfer) for changed-geometry transfer.
 
 For a different basis at the same geometry, cross-AO overlaps solve `S_new C_new = S_new,old C_old`, restoring core orthonormality and core–active orthogonality.

@@ -15,12 +15,14 @@ SECTIONS = {
                   orbitals=list, ao_electrons=int, ao_threshold=float).items()}),
     'optimizer': dict(method=('optimization_method', str), **{k: (k, t) for k, t in dict(orbital_update=str, spin_solver=str, epsilon=float, max_outer_iterations=int,
                   max_inner_iterations=int, core_max_iterations=int,
-                  core_gradient_tolerance=float, max_permutation_pairs=int,
+                  core_gradient_tolerance=float, second_order=bool, second_order_fallback=bool, core_response=bool, max_permutation_pairs=int,
                   spin_overlap_cutoff=float, orbital_micro_iterations=int, joint_correction=bool,
                   joint_correction_start=int, orbital_overlap_cutoff=float).items()}),
     'output': dict(path=('output', str), verbose=('verbose', bool)),
     'geometry': {k: ('geometry_' + k, t) for k, t in dict(
-                  method=str, coordinates=str, bonds=list, max_iterations=int, max_evaluations=int,
+                  method=str, coordinates=str, bonds=list, symmetry_operations=list,
+                  freeze=list, set=list, constraint_tolerance=float,
+                  restart_json=str, max_seconds=float, max_iterations=int, max_evaluations=int,
                   difference_step=float, gradient_tolerance=float, energy_tolerance=float,
                   step_tolerance=float, trust_radius=float, max_radius=float, final_radius=float).items()},
 }
@@ -51,17 +53,22 @@ def input_arguments(path):
                 valid = type(value) in (int, float) and math.isfinite(value)
             if kind is list:
                 valid = type(value) is list and len(value) > 0 and all(
-                    (type(i) is str and bool(i.strip())) if key in ('orbitals', 'bonds')
+                    (type(i) is str and bool(i.strip())) if key in ('orbitals', 'bonds', 'symmetry_operations', 'freeze', 'set')
                     else (type(i) is int and i >= 1) for i in value)
             if not valid or (kind is str and not value.strip()):
                 raise ValueError(f'Invalid value for {section}.{key} (expected {kind.__name__})')
             values[option] = value
+    if ('second_order' in values and 'core_response' in values
+            and values['second_order'] != values['core_response']):
+        raise ValueError('optimizer.second_order and its legacy alias core_response disagree')
     if ('atom' in values) == ('xyz' in values):
         raise ValueError('Input [molecule] must specify exactly one of atom or xyz')
     if 'xyz' in values:
         values['xyz'] = str((path.parent / values['xyz']).resolve())
     if 'initial_json' in values:
         values['initial_json'] = str((path.parent / values['initial_json']).resolve())
+    if 'geometry_restart_json' in values:
+        values['geometry_restart_json'] = str((path.parent / values['geometry_restart_json']).resolve())
     values['output'] = str((path.parent / values['output']).resolve()) if 'output' in values else str(path.with_suffix('.json'))
     args = []
     for option, value in values.items():
@@ -69,7 +76,10 @@ def input_arguments(path):
         if type(value) is bool:
             args.append(flag if value else '--no-' + option.replace('_', '-'))
         elif isinstance(value, list):
-            args.extend([flag, *(str(i) for i in value)])
+            if option in ('geometry_symmetry_operations', 'geometry_freeze', 'geometry_set'):
+                args.extend(flag + '=' + str(i) for i in value)
+            else:
+                args.extend([flag, *(str(i) for i in value)])
         else:
             # The equals form safely preserves multiline geometries and values starting with '-'.
             args.append(flag + '=' + str(value))

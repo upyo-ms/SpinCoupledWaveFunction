@@ -53,13 +53,15 @@ def build(output):
         'examples/legacy_generate_cube.py',
         'README.md','INPUT_FILE.md','ACTIVE_SPACE.md','HPC_README.md','MOLECULE_INTERFACE.md','GEOMETRY_OPTIMIZATION.md',
         'JAX_BACKEND.md','ORBITAL_VIEWER.md','PHYSICS_FIX.md',
+        'SECOND_ORDER.md','CORE_RESPONSE.md','OPTIMIZATION_STATE_RETENTION.md',
         'requirements-base.txt','requirements-cpu.txt','requirements-gpu-cuda13.txt','requirements-geometry.txt',
     ]
     for pattern in ('scgvb/**/*.py','scgvb/**/*.md','tools/*.py','hpc/*.py','hpc/*.sh',
                     'examples/*.xyz','examples/inputs/*.toml'):
         names.extend(str(p.relative_to(ROOT)) for p in ROOT.glob(pattern)
                      if not (p.parent == ROOT/'hpc' and p.name.lower().startswith('rikyu')))
-    names = sorted(set(names))
+    # This local input depends on a saved rikyu job, rather than shipped examples.
+    names = sorted(set(names) - {'examples/inputs/b2h6_geometry_bobyqa.toml'})
     content = {name: (ROOT/name).read_bytes() for name in names}
     validate_local_imports(content)
     manifest={'format':1,'description':'SCGVB single-GPU 12-pi-electron source distribution',

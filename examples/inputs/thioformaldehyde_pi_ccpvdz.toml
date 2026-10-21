@@ -1,0 +1,27 @@
+# Fixed nuclear geometry. Use --optimize-core to relax inactive orbitals.
+[molecule]
+xyz = "../thioformaldehyde.xyz"
+basis = "cc-pvdz"
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+mode = "ao"
+orbitals = ["1 2pz A", "2 3pz A"]
+ao_electrons = 2
+optimize_core = false
+
+[optimizer]
+epsilon = 1e-8
+core_max_iterations = 50
+core_gradient_tolerance = 1e-6
+core_response = false
+
+[output]
+path = "thioformaldehyde_pi_ccpvdz.json"
+verbose = 1

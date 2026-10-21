@@ -1,0 +1,20 @@
+# Internal C/Cs Newton corrections; --optimize-core also enables outer response.
+[molecule]
+atom = "Li 0 0 0; H 0 0 1.6"
+basis = "sto-3g"
+
+[calculation]
+backend = "numpy"
+energy_evaluation = "determinant"
+initial_guess = "hf"
+
+[active_space]
+inactive_mos = [1]
+active_mos = [2, 3]
+optimize_core = false
+
+[optimizer]
+second_order = true
+
+[output]
+path = "lih_second_order.json"

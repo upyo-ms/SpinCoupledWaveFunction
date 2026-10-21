@@ -7,6 +7,8 @@ import numpy as np
 from dataclasses import dataclass
 from scipy.linalg import eigh
 
+from scgvb.optimization.convergence import ElectronicConvergenceError
+
 
 def validate_options(optimization_method, spin_overlap_cutoff, orbital_micro_iterations=0,
                      orbital_update='bfgs', spin_solver='canonical', orbital_overlap_cutoff=1e-10,
@@ -371,7 +373,8 @@ def optimize(system, C, Cs, *, verbose=False, epsilon=1e-8,
     system.optimization_info = info
     saved = np.r_[C.ravel(), Cs]
     if diagnostics is not None:
-        diagnostics.start(system)
+        if not getattr(getattr(system, '_second_order_context', None), 'diagnostics_started', False):
+            diagnostics.start(system)
         diagnostics.snapshot(system, 'start', saved, optimizer_options=dict(
             optimization_method='alternating', spin_overlap_cutoff=spin_overlap_cutoff,
             norm_retention=.5, orbital_step_limit=.1,
@@ -516,6 +519,11 @@ def optimize(system, C, Cs, *, verbose=False, epsilon=1e-8,
                 if diagnostics is not None:
                     diagnostics.snapshot(system, 'joint_after', system.normalized_candidate(saved),
                                          iteration=iteration, **joint_info)
+            second_order = getattr(system, '_second_order_context', None)
+            if second_order is not None:
+                C, Cs = second_order.correct(C, Cs, max_steps=min(2, max_inner_iterations),
+                                             stage='alternating', norm_floor=floor)
+                C, _ = normalized_columns(C, system.S)
             current_energy, unit_norm = energy(C, Cs)
             saved = system.normalized_candidate(np.r_[C.ravel(), Cs])
             gradient = system.rayleigh_gradient(saved)
@@ -567,12 +575,14 @@ def optimize(system, C, Cs, *, verbose=False, epsilon=1e-8,
             # Bounded warmup may reach a plateau before the coupled stage.
             # Energy increase and full convergence checks still apply throughout.
             if stalled >= 5 and (not joint_correction or joint_active):
-                raise RuntimeError(f'Alternating optimization stalled (physical_gradient={gradient_max:g}). '
+                raise ElectronicConvergenceError(f'Alternating optimization stalled (physical_gradient={gradient_max:g}). '
                                    'No converged energy is available.')
             previous_energy = current_energy
-        raise RuntimeError(f'Alternating optimization did not converge in {max_outer_iterations} iterations '
+        raise ElectronicConvergenceError(f'Alternating optimization did not converge in {max_outer_iterations} iterations '
                            f'(physical_gradient={gradient_max:g}). No converged energy is available.')
     except Exception as exc:
+        if isinstance(exc, ElectronicConvergenceError):
+            exc.retained_optimization_states = dict(last_iterate=dict(x=saved.copy()))
         if diagnostics is not None:
             diagnostics.snapshot(system, 'failure', saved, error=str(exc),
                                  spin_rejection=info.get('spin_rejection'))

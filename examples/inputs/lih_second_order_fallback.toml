@@ -1,0 +1,20 @@
+# Try the ordinary optimizer first, then retry nonconvergence with corrections.
+[molecule]
+atom = "Li 0 0 0; H 0 0 1.6"
+basis = "sto-3g"
+
+[calculation]
+initial_guess = "hf"
+energy_evaluation = "determinant"
+
+[active_space]
+inactive_mos = [1]
+active_mos = [2, 3]
+optimize_core = false
+
+[optimizer]
+second_order = false
+second_order_fallback = true
+
+[output]
+path = "lih_second_order_fallback.json"

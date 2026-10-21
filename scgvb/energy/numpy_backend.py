@@ -6,6 +6,7 @@ from pyscf import gto
 from scipy.optimize import minimize
 
 from scgvb.orbitals import integrals
+from scgvb.optimization.convergence import ElectronicConvergenceError
 import scgvb.spin as sf
 
 
@@ -280,11 +281,23 @@ class SCWF_Energy:
     def optimize(self, C, Cs, *, optimization_method='simultaneous',
                  spin_overlap_cutoff=1e-10, orbital_micro_iterations=0,
                  orbital_update='bfgs', spin_solver='canonical', orbital_overlap_cutoff=1e-10,
-                 joint_correction=False, joint_correction_start=1, **options):
+                 joint_correction=False, joint_correction_start=1, second_order=False, **options):
         """Explicit method selection; the historical simultaneous solver is unchanged."""
         from scgvb.optimization.alternating import validate_options
         validate_options(optimization_method, spin_overlap_cutoff, orbital_micro_iterations,
                          orbital_update, spin_solver, orbital_overlap_cutoff, joint_correction, joint_correction_start)
+        if type(second_order) is not bool:
+            raise ValueError('second_order must be a boolean')
+        if second_order:
+            from scgvb.optimization.second_order import optimize as corrected_optimize
+            return corrected_optimize(self, C, Cs, lambda c, cs: self.optimize(
+                c, cs, optimization_method=optimization_method, spin_overlap_cutoff=spin_overlap_cutoff,
+                orbital_micro_iterations=orbital_micro_iterations, orbital_update=orbital_update,
+                spin_solver=spin_solver, orbital_overlap_cutoff=orbital_overlap_cutoff,
+                joint_correction=joint_correction, joint_correction_start=joint_correction_start,
+                **options), options)
+        if getattr(self, '_second_order_context', None) is None:
+            self.second_order_info = None
         if optimization_method == 'simultaneous':
             return self.augmentedLagrangian(C, Cs, **options)
         if optimization_method != 'alternating':
@@ -319,7 +332,22 @@ class SCWF_Energy:
         if not np.isfinite(result.x).all() or not np.isfinite(result.fun):
             raise FloatingPointError("Non-finite refinement result")
         # A line-search status alone cannot certify or reject stationarity.
-        return self.normalized_candidate(result.x)
+        candidate = self.normalized_candidate(result.x)
+        correction = getattr(self, '_second_order_context', None)
+        if correction is not None and np.max(abs(self.rayleigh_gradient(candidate))) > 1e-6:
+            # A failed BFGS refinement may be nearly cancelling. Try its result
+            # and the original physical state independently; never replace a
+            # lower candidate with a higher stationary state without checking.
+            candidates = [candidate]
+            for label, source in (('refinement', candidate), ('refinement_start', start)):
+                cc, ss = correction.correct(*self.split_x(source),
+                    max_steps=min(16, max_iterations), stage=label)
+                candidates.append(self.normalized_candidate(np.r_[cc.ravel(), ss]))
+            def rank(values):
+                numerator, norm = self.calcEnergy(*self.split_x(values))
+                return (np.max(abs(self.rayleigh_gradient(values))) > 1e-6, float(numerator/norm))
+            candidate = min(candidates, key=rank)
+        return candidate
 
 
     def augmentedLagrangian(self, C, Cs, verbose=False, epsilon=1e-8,
@@ -328,14 +356,24 @@ class SCWF_Energy:
                        max_outer_iterations=max_outer_iterations, max_inner_iterations=max_inner_iterations)
         diagnostics = getattr(self, 'diagnostics', None)
         if diagnostics is None:
-            return self._augmentedLagrangian(C, Cs, **options)
-        diagnostics.start(self)
+            try:
+                return self._augmentedLagrangian(C, Cs, **options)
+            except Exception as exc:
+                exc.retained_optimization_states = getattr(self, 'retained_optimization_states', None)
+                raise
+        if not getattr(getattr(self, '_second_order_context', None), 'diagnostics_started', False):
+            diagnostics.start(self)
         self._diagnostic_x = np.r_[C.ravel(), Cs].copy()
         self._diagnostic_best_x = None
         diagnostics.snapshot(self, 'start', self._diagnostic_x, optimizer_options=options)
         try:
             result = self._augmentedLagrangian(C, Cs, **options)
         except Exception as exc:
+            exc.retained_optimization_states = getattr(self, 'retained_optimization_states', None)
+            stationary = (exc.retained_optimization_states or {}).get('stationary_candidate')
+            if stationary is not None:
+                diagnostics.snapshot(self, 'failure_stationary_candidate', stationary['x'],
+                                     error=str(exc), active_energy_hartree=stationary['active_energy_hartree'])
             diagnostics.snapshot(self, 'failure',
                                  self._diagnostic_best_x if self._diagnostic_best_x is not None
                                  else self._diagnostic_x, error=str(exc))
@@ -345,6 +383,10 @@ class SCWF_Energy:
 
     def _augmentedLagrangian(self, C, Cs, verbose=False, epsilon=1e-8,
                             max_outer_iterations=50, max_inner_iterations=1000):
+        # Keep a usable stationary candidate even when a lower, unconverged
+        # feasible point prevents acceptance. Neither state changes the search
+        # or the existing energy/stationarity acceptance conditions.
+        self.retained_optimization_states = dict(lowest_feasible=None, stationary_candidate=None)
         if not np.isfinite(epsilon) or epsilon <= 0:
             raise ValueError("epsilon must be finite and positive")
         for limit in (max_outer_iterations, max_inner_iterations):
@@ -378,6 +420,8 @@ class SCWF_Energy:
             energy = physical_energy(normalized)
             if abs(norm - 1.) < epsilon and energy < best_energy:
                 best_x, best_energy = normalized.copy(), energy
+                self.retained_optimization_states['lowest_feasible'] = dict(
+                    x=normalized.copy(), active_energy_hartree=float(energy), norm=float(norm))
                 if getattr(self, 'diagnostics', None) is not None:
                     self._diagnostic_best_x = best_x.copy()
                     self.diagnostics.snapshot(self, 'best', best_x)
@@ -398,7 +442,7 @@ class SCWF_Energy:
                 if not np.isfinite(c):
                     raise FloatingPointError("Wavefunction norm is non-finite")
             except (FloatingPointError, OverflowError) as exc:
-                raise RuntimeError(
+                raise ElectronicConvergenceError(
                     f"Energy optimization diverged at outer iteration {iteration} "
                     f"(mu={mu:g}): {exc}. No converged energy is available."
                 ) from exc
@@ -448,6 +492,16 @@ class SCWF_Energy:
                         restart_candidate = candidate
                 candidate_energy = retain(candidate)
                 gradient_max = np.max(np.abs(physical_gradient))
+                previous_stationary = self.retained_optimization_states['stationary_candidate']
+                if (stationary and abs(candidate_error) < epsilon
+                        and (previous_stationary is None
+                             or candidate_energy < previous_stationary['active_energy_hartree'])):
+                    self.retained_optimization_states['stationary_candidate'] = dict(
+                        x=candidate.copy(), active_energy_hartree=float(candidate_energy),
+                        norm=float(candidate_error + 1.), physical_gradient_max_abs=float(gradient_max))
+                    if diagnostics is not None:
+                        diagnostics.snapshot(self, 'best_stationary_candidate', candidate,
+                                             active_energy_hartree=float(candidate_energy))
                 unit_norm = self.unit_orbital_wavefunction_norm(candidate)
                 if diagnostics is not None:
                     self._diagnostic_x = candidate.copy()
@@ -490,7 +544,7 @@ class SCWF_Energy:
                     if verbose:
                         print("Continuing outer iteration after an inexact inner solve.")
                 else:
-                    raise RuntimeError(
+                    raise ElectronicConvergenceError(
                         f"Inner energy optimization failed at outer iteration {iteration}: "
                         f"{res.message} (constraint={c:g}, mu={mu:g}). "
                         "No converged energy is available."
@@ -517,7 +571,7 @@ class SCWF_Energy:
                 mu, lam = 1.0, 0.0
                 previous_constraint = np.inf
                 if rejected_iterations >= 5:
-                    raise RuntimeError(
+                    raise ElectronicConvergenceError(
                         f'Energy optimization stalled at outer iteration {iteration}: '
                         f'no improvement over retained best state (physical_gradient={gradient_max:g}). '
                         'No converged energy is available.')
@@ -533,7 +587,7 @@ class SCWF_Energy:
             stalled_iterations = (stalled_iterations + 1
                                   if abs(c) >= 0.95 * previous_constraint else 0)
             if stalled_iterations >= 5 or mu >= 1e8:
-                raise RuntimeError(
+                raise ElectronicConvergenceError(
                     f"Energy optimization stalled at outer iteration {iteration} "
                     f"(constraint={c:g}, normalized_constraint={candidate_error:g}, "
                     f"physical_gradient={gradient_max:g}, unit_orbital_norm={unit_norm:g}, "
@@ -547,9 +601,9 @@ class SCWF_Energy:
                 mu *= 2
             previous_constraint = abs(c)
             if not np.isfinite(mu) or not np.isfinite(lam):
-                raise RuntimeError("Non-finite augmented Lagrangian multipliers")
+                raise ElectronicConvergenceError("Non-finite augmented Lagrangian multipliers")
         else:
-            raise RuntimeError(
+            raise ElectronicConvergenceError(
                 f"Energy optimization did not converge in {max_outer_iterations} "
                 f"outer iterations (constraint={c:g}, "
                 f"normalized_constraint={candidate_error:g}, "

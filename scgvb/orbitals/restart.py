@@ -8,7 +8,7 @@ from pyscf import gto
 from scgvb.spin.primitive import generate_branch_diagrams
 
 
-def restart_orbitals(mol, space, path, *, allow_geometry_change=False):
+def restart_orbitals(mol, space, path, *, allow_geometry_change=True):
     if isinstance(path, Mapping):
         data, source = path, 'in_memory'
     else:
@@ -23,7 +23,7 @@ def restart_orbitals(mol, space, path, *, allow_geometry_change=False):
             raise ValueError('Restart requires the same atoms, order, charge and multiplicity')
         geometry_changed = not np.allclose(old.atom_coords(), mol.atom_coords(), atol=1e-7, rtol=0)
         if geometry_changed and not allow_geometry_change:
-            raise ValueError('Restart geometry differs; set allow_geometry_change=True to project the state')
+            raise ValueError('Restart geometry differs and allow_geometry_change=False forbids projection')
         ne = mol.nelectron if space is None else space.electrons
         diagrams = generate_branch_diagrams((ne+mol.spin)//2, (ne-mol.spin)//2)
         if not np.array_equal(diagrams, data['spin_branch_diagrams']):
@@ -99,6 +99,8 @@ def restart_orbitals(mol, space, path, *, allow_geometry_change=False):
         info = dict(method='json', source=source, source_basis=spec['basis'],
                     projection='AO overlap least squares', perturbation=0.,
                     geometry_changed=geometry_changed,
+                    target_geometry_retained=True,
+                    geometry_policy='project_to_input' if allow_geometry_change else 'require_matching_geometry',
                     target_space_retained=bool(space is not None and geometry_changed))
         return space, c, cs, info
     except (KeyError, TypeError, IndexError) as exc:

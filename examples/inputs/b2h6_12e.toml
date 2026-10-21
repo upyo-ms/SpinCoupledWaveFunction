@@ -1,0 +1,44 @@
+# Fixed D2h geometry reconstructed from NIST CCCBDB.
+# All 12 valence electrons are active; only the two B 1s closed shells are frozen.
+# No joint correction or geometry/core optimization is enabled.
+[molecule]
+xyz = "../b2h6.xyz"
+basis = "cc-pvdz"
+charge = 0
+multiplicity = 1
+unit = "Angstrom"
+
+[calculation]
+backend = "jax"
+device = "gpu"
+energy_evaluation = "determinant"
+determinant_size_profile = "large14"
+initial_guess = "hf"
+initial_perturbation = 0.02
+seed = 40
+initial_spin_guess = "eigen"
+initial_spin_overlap_cutoff = 1e-12
+
+[active_space]
+mode = "ao"
+orbitals = ["1 1s F", "2 1s F", "1 2s 2p A", "2 2s 2p A",
+            "3 1s A", "4 1s A", "5 1s A", "6 1s A", "7 1s A", "8 1s A"]
+ao_threshold = 0.2
+ao_electrons = 12
+optimize_core = false
+
+[optimizer]
+method = "alternating"
+orbital_update = "single_orbital"
+spin_solver = "projected"
+spin_overlap_cutoff = 1e-12
+orbital_overlap_cutoff = 1e-10
+orbital_micro_iterations = 3
+max_inner_iterations = 12
+max_outer_iterations = 100
+epsilon = 1e-8
+joint_correction = false
+
+[output]
+path = "b2h6_12e_result.json"
+verbose = 2

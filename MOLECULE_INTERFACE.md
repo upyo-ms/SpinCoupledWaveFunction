@@ -5,7 +5,7 @@ Geometry optimization is available explicitly through `[geometry]` or `--geometr
 Full CI is not run. SCF is used for `--initial-guess hf` initial orbitals or frozen-closed-shell/active-space selection.
 Both NumPy and JAX use the existing augmented Lagrangian method and stagnation fallback.
 
-## XYZ input
+## XYZ and result JSON input
 
 ```bash
 # H3+: three atoms, two electrons, singlet, JAX CPU
@@ -19,6 +19,25 @@ python calc_molecule.py --xyz examples/h4.xyz --output h4.json
 XYZ input is a single frame containing an atom count, a comment line, and atom lines of the form `element x y z`.
 Charge and multiplicity are specified explicitly in the command, not read from the XYZ comment.
 Coordinates default to Angstrom; use `--unit Bohr` for Bohr coordinates.
+
+`--xyz result.json` also accepts an SCGVB result, selecting only the top-level
+`molecule.atoms` and converting its stored coordinate unit to `--unit`.
+Nested histories and checkpoints are not selected. Basis, charge, and
+multiplicity use the new command's settings.
+Use `--initial-json result.json` as well to reuse the wavefunction:
+
+```bash
+python calc_molecule.py --xyz optimized.json --initial-json optimized.json \
+    --basis cc-pvdz --output restarted.json
+```
+
+Keep the required active-space options in the new command. Coordinates may also
+come from a different file, such as `--xyz slightly_changed.xyz`. Changed geometry
+is allowed by default: the input coordinates are retained and saved orbitals are
+projected onto them, with spin-coupling coefficients reused as an initial guess.
+Atom types and order, charge, multiplicity, and active-space compatibility must
+still match. Use `--no-allow-geometry-change` to require matching coordinates.
+See [TOML examples](INPUT_FILE.md#coordinates-from-result-json).
 
 ## Specifying coordinates directly
 

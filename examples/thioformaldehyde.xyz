@@ -1,0 +1,6 @@
+4
+Fixed NIST CCCBDB experimental Cartesian geometry, rotated into xy; https://cccbdb.nist.gov/exp2x.asp?casno=865361&charge=0
+C   0.00000000   0.00000000   0.00000000
+S   1.61080000   0.00000000   0.00000000
+H  -0.57180000   0.92440000   0.00000000
+H  -0.57180000  -0.92440000   0.00000000

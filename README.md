@@ -51,8 +51,26 @@ python calc_molecule.py examples/inputs/allyl.toml
 An allyl-radical example (cc-pVDZ, three pi electrons, core relaxation) is included.
 See [Input file format](INPUT_FILE.md). The existing CLI is also available.
 
+Fixed-geometry thioformaldehyde pi inputs are provided for
+[STO-3G](examples/inputs/thioformaldehyde_pi_sto3g.toml) and
+[cc-pVDZ](examples/inputs/thioformaldehyde_pi_ccpvdz.toml). C 2pz / S 3pz MINAO
+targets select two electrons in two active orbitals. Inactive orbitals are fixed
+by default; add `--optimize-core`, optionally with `--second-order`, to relax
+them while keeping the nuclear geometry fixed.
+
+Fixed-geometry vinylthiol inputs for [STO-3G](examples/inputs/vinylthiol_pi_sto3g.toml)
+and [cc-pVDZ](examples/inputs/vinylthiol_pi_ccpvdz.toml) select four active electrons
+using C 2pz / C 2pz / S 3pz targets. SCGVB optimizes four nonorthogonal orbitals
+in the selected three-dimensional active basis, with two singlet spin-coupling
+functions. The active basis dimension is distinct from the number of SCGVB orbitals.
+
 Geometry optimization supports energy-only BOBYQA and an internal-coordinate quasi-Newton method with numerical gradients.
 Install `pip install -r requirements-geometry.txt` and select the method in the input's `[geometry]` section.
+Both methods support fixed Cartesian positions, distances, angles, and dihedrals
+using `geometry.freeze` and `geometry.set`; see [fixed degrees of freedom](GEOMETRY_OPTIMIZATION.md#fixed-positions-distances-angles-and-dihedrals).
+BOBYQA also supports point-symmetry generators that automatically reduce the
+geometry variables (D2h diborane has four), with atomic checkpointing and cached
+evaluation replay on restart. See [symmetry constraints and geometry restart](GEOMETRY_OPTIMIZATION.md#point-symmetry-constraints).
 See [Geometry optimization](GEOMETRY_OPTIMIZATION.md) for automatic internal coordinates, orbital projection between geometries, convergence criteria, and examples.
 
 Codes for "Augmented Lagrangian method for optimizing non-orthogonal orbitals"
@@ -73,6 +91,11 @@ python calc_molecule.py --xyz examples/h3_plus.xyz --charge 1 --multiplicity 1 \
     --backend jax --device cpu --output h3_plus.json
 python calc_molecule.py --xyz examples/h4.xyz --output h4.json
 ```
+
+`--xyz` (or TOML `[molecule] xyz`) also accepts an SCGVB result JSON, reading its
+top-level molecular structure. Add `--initial-json` to reuse its wavefunction.
+An initial wavefunction from a different geometry is projected onto the input
+structure by default; see [JSON geometry and restart input](INPUT_FILE.md#coordinates-from-result-json).
 
 See [MOLECULE_INTERFACE.md](MOLECULE_INTERFACE.md) for geometry input, results,
 the Python API and electron-count limitations. The existing diatomic test is
@@ -159,6 +182,9 @@ Initial orbitals, initial spin-coupling coefficients `Cs`, and the optimization 
 | `[optimizer] orbital_micro_iterations` | `0` | Interval between spin solves during orbital updates: accepted steps for BFGS-based methods, attempted eigenproblem solves for single-orbital updates. `0` solves after the complete orbital block. |
 | `[optimizer] joint_correction` | `false` | Add a simultaneous orbital/spin correction after alternating updates. |
 | `[optimizer] joint_correction_start` | `1` | First sweep that includes joint correction. Alternating optimization continues afterward. |
+| `[optimizer] second_order` | `false` | Analytic joint C/Cs corrections in internal solves; also outer orbital response with `optimize_core = true`. Works with fixed inactive orbitals. See [details and limits](SECOND_ORDER.md). |
+| `[optimizer] second_order_fallback` | `false` | Try the existing optimizer first; retry electronic nonconvergence once with second-order corrections. Applies to both inactive settings and geometry evaluations. |
+| `[optimizer] core_response` | alias | Legacy name for `second_order`, including its internal corrections. |
 
 Example settings for initializing spin coefficients from an eigenproblem and using alternating optimization follow.
 Specify the molecule, basis, and active space in the input file.
