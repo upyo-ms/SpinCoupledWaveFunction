@@ -12,7 +12,8 @@ energy_evaluation = "determinant"
 initial_json = "thiophene_sto3g.json"
 
 [optimizer]
-method = "simultaneous"
+#method = "simultaneous"
+method = "alternating"
 core_max_iterations = 50
 core_gradient_tolerance = 1e-6
 max_outer_iterations = 50
@@ -35,7 +36,7 @@ max_iterations = 100
 max_evaluations = 2000
 trust_radius = 0.01
 max_radius = 0.02
-final_radius = 0.0001
+final_radius = 0.001
 
 [output]
 path = "thiophene_ccpvdz_verbose.json"

@@ -26,6 +26,30 @@ Omitting JAX `--device` uses the default JAX device.
 - JIT recompiles when array shapes change; a distance scan with unchanged shapes can reuse compiled functions.
 - The default permutation method still stores `(N!)²` configuration pairs. See `ACTIVE_SPACE.md` for determinant evaluation and active spaces with frozen closed shells.
 
+## Optional JAX second-order curvature
+
+The energy backend and second-order curvature backend are separate choices.
+Enable JAX curvature explicitly in TOML:
+
+```toml
+[optimizer]
+second_order = true
+second_order_backend = "jax"
+```
+
+The CLI equivalents are `--second-order --second-order-backend jax`.
+The curvature backend defaults to `analytic`, including when `--backend jax`
+is selected. Choosing JAX curvature alone does not enable corrections; it also
+selects the backend for a later `second_order_fallback` retry.
+With JAX energy evaluation, the internal Hessian and normalized-wavefunction
+Jacobian run on that evaluator's device; with NumPy evaluation, they run on JAX
+CPU. Metric projection, step control, and outer orbital-response contractions
+remain on CPU. This uses a separate polynomial-minor differentiation path,
+not second differentiation of the energy evaluator's first-order custom VJP.
+See [SECOND_ORDER.md](SECOND_ORDER.md#jax-curvature-option) for the runnable LiH
+example, bounded dense-Hessian allocation, validation, and experimental limits.
+GPU performance has not been validated locally.
+
 ## Validation and timing
 
 ```bash

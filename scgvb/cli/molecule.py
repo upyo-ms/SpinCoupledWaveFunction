@@ -49,7 +49,7 @@ def calculate(atom, basis='sto-3g', charge=0, multiplicity=1, unit='Angstrom',
               orbital_overlap_cutoff=1e-10, joint_correction=False, joint_correction_start=1,
               initial_spin_guess='uniform', initial_spin_overlap_cutoff=1e-10,
               determinant_size_profile='standard', allow_geometry_change=True, core_response=None,
-              second_order=None, second_order_fallback=False):
+              second_order=None, second_order_fallback=False, second_order_backend='analytic'):
     """Return JSON-compatible results. HF runs for HF guesses or active-space selection; no FCI optimization.
 
     C columns correspond to the nonorthogonal orbitals in PySCF's AO order;
@@ -57,8 +57,9 @@ def calculate(atom, basis='sto-3g', charge=0, multiplicity=1, unit='Angstrom',
     """
     from scgvb.energy.determinants import determinant_size_profile as validate_size_profile
     validate_size_profile(determinant_size_profile)
-    from scgvb.optimization.second_order import resolve_option
+    from scgvb.optimization.second_order import resolve_option, validate_backend
     second_order = resolve_option(second_order, core_response)
+    validate_backend(second_order_backend)
     second_order_requested = second_order
     if type(second_order_fallback) is not bool:
         raise ValueError('second_order_fallback must be a boolean')
@@ -154,6 +155,7 @@ def calculate(atom, basis='sto-3g', charge=0, multiplicity=1, unit='Angstrom',
                                  orbital_overlap_cutoff=orbital_overlap_cutoff, joint_correction=joint_correction,
                                  joint_correction_start=joint_correction_start)
         optimizer_options['second_order'] = second_order
+        optimizer_options['second_order_backend'] = second_order_backend
         from scgvb.optimization.convergence import optimize_electronic
         electronic_result, second_order, fallback_info = optimize_electronic(
             system, C, Cs, optimize_core=optimize_core, second_order=second_order,
@@ -188,6 +190,7 @@ def calculate(atom, basis='sto-3g', charge=0, multiplicity=1, unit='Angstrom',
                             optimization_method=optimization_method,
                             core_response=core_response, second_order=second_order,
                             second_order_requested=second_order_requested,
+                            second_order_backend=second_order_backend,
                             second_order_fallback=second_order_fallback,
                             spin_overlap_cutoff=spin_overlap_cutoff if optimization_method == 'alternating' else None,
                             orbital_micro_iterations=orbital_micro_iterations if optimization_method == 'alternating' else None,
@@ -315,7 +318,9 @@ def main(argv=None):
     parser.add_argument('--core-gradient-tolerance', type=float, default=1e-6)
     parser.add_argument('--second-order', '--core-response', dest='second_order',
                         action=argparse.BooleanOptionalAction, default=False,
-                        help='Analytic SCGVB C/Cs corrections, plus outer response when optimizing core; core-response is a legacy alias')
+                        help='SCGVB C/Cs corrections, plus outer response when optimizing core; core-response is a legacy alias')
+    parser.add_argument('--second-order-backend', choices=('analytic', 'jax'), default='analytic',
+                        help='Curvature evaluation: analytic (default) or JAX autodiff; does not enable second-order corrections')
     parser.add_argument('--second-order-fallback', action=argparse.BooleanOptionalAction, default=False,
                         help='Retry electronic nonconvergence once with second-order corrections; default off')
     parser.add_argument('--inactive-mos', nargs='+', type=int, help='One-based doubly occupied HF MO indices')
@@ -433,6 +438,7 @@ def main(argv=None):
             size['determinant_size_profile'] = args.determinant_size_profile
             size['optimize_core'] = args.optimize_core
             size['second_order'] = args.second_order
+            size['second_order_backend'] = args.second_order_backend
             size['second_order_fallback'] = args.second_order_fallback
             size['core_response'] = bool(args.second_order and args.optimize_core)
             if args.second_order:
@@ -475,6 +481,7 @@ def main(argv=None):
                            optimize_core=args.optimize_core, core_max_iterations=args.core_max_iterations,
                            core_gradient_tolerance=args.core_gradient_tolerance,
                            second_order=args.second_order, second_order_fallback=args.second_order_fallback,
+                           second_order_backend=args.second_order_backend,
                            orbitals=args.orbitals, ao_electrons=args.ao_electrons, ao_threshold=args.ao_threshold, initial_json=args.initial_json,
                            diagnostics_dir=args.output.with_name(args.output.stem + '_diagnostics'),
                            optimization_method=args.optimization_method,

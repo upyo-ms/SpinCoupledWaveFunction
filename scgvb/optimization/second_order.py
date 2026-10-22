@@ -1,4 +1,4 @@
-"""Opt-in analytic Newton corrections for SCGVB C and spin-coupling coefficients.
+"""Opt-in safeguarded Newton corrections for C and spin-coupling coefficients.
 
 The physical wavefunction metric removes redundant directions. Corrections are
 bounded and checked with the selected energy evaluator; the existing optimizer
@@ -9,6 +9,12 @@ from pyscf import ao2mo, fci
 
 from scgvb.energy.determinants import make_ci_builder
 from scgvb.optimization.core_response import AmplitudeDerivatives, internal_curvature
+
+
+def validate_backend(backend):
+    if backend not in ('analytic', 'jax'):
+        raise ValueError('second_order_backend must be analytic or jax')
+    return backend
 
 
 def resolve_option(second_order=None, core_response=None):
@@ -23,9 +29,14 @@ def resolve_option(second_order=None, core_response=None):
 
 class InternalCorrections:
     """One fixed Hamiltonian; no independent determinant coefficients are varied."""
-    def __init__(self, system, epsilon=1e-8):
+    def __init__(self, system, epsilon=1e-8, backend='analytic'):
         self.system, self.epsilon = system, epsilon
-        self.amplitudes = AmplitudeDerivatives(system)
+        self.backend = validate_backend(backend)
+        if backend == 'jax':
+            from scgvb.optimization.jax_second_order import curvature_model
+            self.curvature = curvature_model(system)
+        else:
+            self.amplitudes = AmplitudeDerivatives(system)
         self.build = make_ci_builder(system)
         w, v = np.linalg.eigh(system.S)
         inverse = np.einsum('ik,k,jk->ij', v, 1/np.sqrt(w), v, optimize=False)
@@ -39,7 +50,9 @@ class InternalCorrections:
         self.electrons = (ne+spin)//2, (ne-spin)//2
         self.h2 = fci.direct_spin1.absorb_h1e(one, two, n, self.electrons, .5)
         self.lowest = self.stationary = None
-        self.info = dict(enabled=True, method='analytic_safeguarded_newton',
+        self.info = dict(enabled=True, method=backend+'_safeguarded_newton',
+                         second_order_backend=backend,
+                         curvature_device=str(self.curvature.device) if backend == 'jax' else 'cpu',
                          initial_step_limit=8, refinement_step_limit=16,
                          accepted_steps=0, attempts=0, history=[])
 
@@ -81,9 +94,11 @@ class InternalCorrections:
             self.info['attempts'] += 1
             self.info['history'].append(record)
             try:
-                data = internal_curvature(self.amplitudes, C, Cs, self.apply_h)
+                data = (self.curvature.evaluate(C, Cs, self.system.Hcore, self.system.JK)
+                        if self.backend == 'jax'
+                        else internal_curvature(self.amplitudes, C, Cs, self.apply_h))
                 if not np.isfinite(data['gradient']).all():
-                    raise FloatingPointError('Nonfinite analytic second-order gradient')
+                    raise FloatingPointError('Nonfinite second-order gradient')
                 ordinary = self.system.rayleigh_gradient(np.r_[C.ravel(), Cs])
                 error = float(np.max(abs(ordinary-data['gradient'])))
                 record.update(cancellation_ratio=data['cancellation_ratio'], gradient_disagreement=error)
@@ -170,7 +185,7 @@ class InternalCorrections:
 
 
 def optimize(system, C, Cs, run, options):
-    """Apply bounded analytic corrections, then the requested existing solver."""
+    """Apply bounded corrections, then the requested existing solver."""
     epsilon = options.get('epsilon', 1e-8)
     if not np.isfinite(epsilon) or epsilon <= 0:
         raise ValueError('epsilon must be finite and positive')
@@ -178,7 +193,7 @@ def optimize(system, C, Cs, run, options):
         count = options.get(name, 1000 if name == 'max_inner_iterations' else 50)
         if not isinstance(count, (int, np.integer)) or count < 1:
             raise ValueError('Iteration limits must be positive integers')
-    context = InternalCorrections(system, epsilon)
+    context = InternalCorrections(system, epsilon, backend=options.get('second_order_backend', 'analytic'))
     system.second_order_info = context.info
     previous = getattr(system, '_second_order_context', None)
     system._second_order_context = context

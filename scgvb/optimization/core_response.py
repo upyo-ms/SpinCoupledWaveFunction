@@ -3,8 +3,8 @@
 Only C and Cs are varied. Polynomial exterior products supply exact first and
 second amplitude derivatives, including manifold curvature. PySCF supplies Hc
 and orbital integral contractions, never an FCI optimization. This deliberately
-bounded CPU implementation is shared by second_order internal corrections and
-the outer response when inactive orbitals are optimized.
+bounded analytic implementation is shared by second_order internal corrections
+and the outer response. An opt-in JAX Hessian shares the same metric projection.
 """
 from itertools import combinations
 from math import comb
@@ -147,6 +147,15 @@ def internal_curvature(amplitudes, C, Cs, apply_h):
     norm_gradient = 2*np.einsum('di,d->i', j, a, optimize=False)
     hessian -= (np.outer(gradient, norm_gradient) + np.outer(norm_gradient, gradient))/norm
     normalized_jacobian = (j - np.outer(a, norm_gradient/(2*norm)))/np.sqrt(norm)
+    return project_curvature(energy, gradient, hessian, normalized_jacobian,
+                             (a/np.sqrt(norm)).reshape(shape), cancellation)
+
+
+def project_curvature(energy, gradient, hessian, normalized_jacobian, ci, cancellation):
+    """Shared physical metric, redundancy cutoff and curvature projection."""
+    if not all(np.isfinite(value).all() for value in
+               (energy, gradient, hessian, normalized_jacobian, ci)):
+        raise FloatingPointError('Nonfinite SCGVB response curvature')
     u, singular, vt = np.linalg.svd(normalized_jacobian, full_matrices=False)
     keep = singular > max(singular[0]*np.sqrt(METRIC_CUTOFF), 1e-12)
     tangent = vt[keep].T / singular[keep]
@@ -156,7 +165,7 @@ def internal_curvature(amplitudes, C, Cs, apply_h):
         raise FloatingPointError('Nonfinite SCGVB response curvature')
     return dict(energy=energy, gradient=gradient, hessian=.5*(hessian+hessian.T),
                 tangent=tangent, reduced_hessian=.5*(reduced+reduced.T),
-                ci=(a/np.sqrt(norm)).reshape(shape),
+                ci=ci,
                 states=u[:, keep], cancellation_ratio=cancellation,
                 metric_singular_values=singular)
 
@@ -192,7 +201,12 @@ def orbital_gradient_response(mc, mo, dm1, dm2, eris, *, hcore_mo=None):
 
 def install_core_response(mc, solver):
     """Add -B.T A^-1 B to orbital curvature; keep the existing AH safeguards."""
-    amplitudes = AmplitudeDerivatives(solver.template)
+    backend = solver.optimizer_options.get('second_order_backend', 'analytic')
+    if backend == 'jax':
+        from scgvb.optimization.jax_second_order import curvature_model
+        model = curvature_model(solver.template)
+    else:
+        amplitudes = AmplitudeDerivatives(solver.template)
     original = mc.gen_g_hop
     history = []
 
@@ -212,7 +226,8 @@ def install_core_response(mc, solver):
         # A change of coefficient scale leaves the normalized SCGVB state intact.
         C = solver.C / np.linalg.norm(solver.C, axis=0)
         Cs = solver.Cs / np.linalg.norm(solver.Cs)
-        data = internal_curvature(amplitudes, C, Cs, apply_h)
+        data = (model.evaluate(C, Cs, h, eri) if backend == 'jax'
+                else internal_curvature(amplitudes, C, Cs, apply_h))
         ci, states = data['ci'], data['states']
         actual = solver.build_ci(solver.C, solver.Cs)
         actual /= np.linalg.norm(actual)
@@ -235,7 +250,9 @@ def install_core_response(mc, solver):
         rotated = np.einsum('ji,jk->ik', vectors, mixed, optimize=False)/(values+shift)[:, None]
         inverse_mixed = np.einsum('ij,jk->ik', vectors, rotated, optimize=False)
         correction_diagonal = .5*np.sum(mixed*inverse_mixed, axis=0)
-        record = dict(internal_tangent_rank=len(values), parameters=amplitudes.p,
+        record = dict(second_order_backend=backend,
+                      curvature_device=str(model.device) if backend == 'jax' else 'cpu',
+                      internal_tangent_rank=len(values), parameters=data['gradient'].size,
                       metric_relative_cutoff=METRIC_CUTOFF,
                       internal_curvature_min=None if not len(values) else float(values[0]),
                       curvature_shift_hartree=shift, curvature_floor_hartree=CURVATURE_FLOOR,

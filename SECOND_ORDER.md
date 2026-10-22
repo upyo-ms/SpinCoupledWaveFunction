@@ -12,7 +12,7 @@ optimize_core = false
 second_order = true
 ```
 
-With `optimize_core=false`, analytic Newton corrections update the SCGVB orbital
+With `optimize_core=false`, safeguarded Newton corrections update the SCGVB orbital
 coefficients C and spin-coupling coefficients Cs within the selected active
 basis. With `optimize_core=true`, the same internal corrections run at every
 macro iteration, and their response corrects the outer orbital Hessian too.
@@ -31,7 +31,65 @@ has no second-derivative tensor allocations.
 
 A small runnable example is [LiH](examples/inputs/lih_second_order.toml).
 
+## JAX curvature option
+
+The existing analytic implementation remains the default:
+`second_order_backend = "analytic"`. To use JAX automatic differentiation:
+
+Install JAX using `python -m pip install -r requirements-cpu.txt` for CPU use,
+or `requirements-gpu-cuda13.txt` on a compatible NVIDIA system. The default
+analytic curvature with NumPy energy evaluation does not require JAX.
+
+```toml
+[calculation]
+backend = "jax"
+device = "cpu"  # "gpu" with an installed, working GPU JAX backend
+energy_evaluation = "determinant"
+
+[optimizer]
+second_order = true
+second_order_backend = "jax"
+```
+
+CLI: `--second-order-backend jax`. Python:
+`calculate(..., second_order=True, second_order_backend="jax", backend="jax", device="cpu")`.
+The curvature choice is independent of the energy evaluator: with NumPy
+energy evaluation, JAX curvature runs on CPU. Selecting `"jax"` alone does not
+enable corrections, import JAX, or allocate its derivative arrays. It also
+selects the curvature used by `second_order_fallback = true` upon activation.
+
+JAX differentiates the full normalized Rayleigh energy with respect to C and
+Cs, including their mixed derivatives, with `jax.hessian`. Derived determinant
+amplitudes remain functions of C/Cs, never independent variables. The FP64
+polynomial-minor path avoids QR rank decisions and inverse-minor derivatives;
+it does not reuse the energy evaluator's first-derivative custom VJP. A constant
+energy reference is subtracted before contraction to reduce cancellation.
+
+The Hessian and normalized-wavefunction Jacobian run on the selected JAX
+device. Integral transformation/factorization, physical-metric SVD, shifts,
+step control, and the surrounding SciPy/PySCF solvers remain on CPU. In an outer
+response, the internal curvature A uses the selected backend; mixed orbital
+derivatives B and the outer action D retain their existing analytic PySCF
+implementation. Compiled derivatives accept the current Hamiltonian as data
+and are reused across internal/outer calls in a core solve. They do not freeze
+the Hamiltonian at the initial orbitals.
+
+This implementation forms the dense internal Hessian; it is not an HVP-only
+iterative solver. The existing derivative-size limit remains conservative and
+does not bound JAX compiler workspaces or peak device memory. GPU execution
+does not guarantee a speedup; compilation and transfers can dominate small
+systems. GPU hardware performance has not yet been validated locally.
+
+Both backends use the same redundancy cutoff, safeguarded step, independent
+gradient agreement check and convergence gates. No silent switch to analytic
+curvature occurs when JAX is selected. An unreliable correction stage can end
+and let the ordinary optimizer continue, as with the analytic option.
+Result records include `calculation.second_order_backend`, and correction and
+outer-response histories record the selected backend and curvature device.
+A runnable example is [LiH with JAX curvature](examples/inputs/lih_second_order_jax.toml).
+
 ```sh
+python calc_molecule.py examples/inputs/lih_second_order_jax.toml
 python calc_molecule.py examples/inputs/lih_second_order.toml
 python calc_molecule.py examples/inputs/lih_second_order.toml --optimize-core
 python calc_molecule.py examples/inputs/vinylthiol_pi_ccpvdz.toml --second-order
@@ -101,11 +159,12 @@ Automatic switching provides another recovery attempt, not guaranteed convergenc
 
 All variations stay within the SCGVB parameterization `x = [C.ravel(), Cs]`.
 Slater determinant amplitudes are derived exterior products, never independent
-optimization variables. PySCF supplies Hamiltonian actions; its FCI optimizer
-is not called. The same CPU derivative calculation works with NumPy or JAX
-energy/gradient evaluation.
+optimization variables. Hamiltonian actions evaluate this parameterized state;
+no FCI optimizer is called. The default analytic derivatives run on CPU and
+work with NumPy or JAX energy/gradient evaluation. The optional JAX curvature
+backend described above computes its derivatives on the selected JAX device.
 
-Polynomial exterior products provide the amplitude, Jacobian and exact second
+In the analytic backend, polynomial exterior products provide the amplitude, Jacobian and exact second
 derivative, including derivatives of individual zero minors. The physical
 Rayleigh Hessian includes the contraction of the second amplitude derivative
 with the Hilbert-space residual. C/Cs mixed derivatives are retained. AO overlap
@@ -199,3 +258,12 @@ factor of two. Molecular benchmarks are recorded in
 fixed and relaxed inactive orbitals, alternating and JAX solves, consistent
 rotated-basis reconstruction, bounded failed retries, strict error eligibility,
 deferred size limits, CLI/TOML overrides, and geometry evaluation records.
+`tests/test_jax_second_order.py` compares AD and analytic Hessians (including
+nonorthogonal AO overlap, zero minors, six active electrons and open shells),
+checks Hessian actions against gradient differences, changed Hamiltonians,
+both optimization methods and inactive settings, automatic retry, and option
+parsing. CPU results are recorded in `runs/local_jax_second_order_20261022/`.
+That verification includes a matched thiophene/STO-3G convergence, and a
+furan/STO-3G case where analytic curvature converges but JAX curvature stalls.
+The optional backend is therefore an experimental alternative, not a claim of
+uniformly improved convergence.

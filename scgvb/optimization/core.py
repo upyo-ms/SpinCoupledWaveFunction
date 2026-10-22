@@ -189,8 +189,9 @@ def optimize_core(system, C, Cs, *, max_iterations=50, gradient_tolerance=1e-6,
     inactive, active and external spaces are allowed; inactive occupations stay 2.
     """
     space = system.active_space
-    from scgvb.optimization.second_order import resolve_option
+    from scgvb.optimization.second_order import resolve_option, validate_backend
     optimizer_options = dict(optimizer_options or {})
+    validate_backend(optimizer_options.get('second_order_backend', 'analytic'))
     if second_order is None and core_response is None:
         second_order = optimizer_options.get('second_order')
     second_order = resolve_option(second_order, core_response)
@@ -308,7 +309,10 @@ def optimize_core(system, C, Cs, *, max_iterations=50, gradient_tolerance=1e-6,
     if getattr(solver, 'optimization_info', None) is not None:
         final.optimization_info = solver.optimization_info
     if second_order:
-        final.second_order_info = dict(enabled=True, method='analytic_safeguarded_newton',
+        backend = optimizer_options.get('second_order_backend', 'analytic')
+        final.second_order_info = dict(enabled=True, method=backend+'_safeguarded_newton',
+            second_order_backend=backend,
+            curvature_device=str(system.device) if backend == 'jax' and hasattr(system, 'device') else 'cpu',
             inner_solves=len(solver.second_order_history),
             accepted_steps=sum(h['accepted_steps'] for h in solver.second_order_history),
             history=solver.second_order_history)
@@ -331,6 +335,7 @@ def optimize_core(system, C, Cs, *, max_iterations=50, gradient_tolerance=1e-6,
     info['active_optimization_method'] = solver.optimizer_options.get('optimization_method', 'simultaneous')
     info['core_response'] = core_response
     info['second_order'] = second_order
+    info['second_order_backend'] = optimizer_options.get('second_order_backend', 'analytic')
     if core_response:
         info['response_method'] = 'scgvb_relaxed_orbital_hessian'
         info['response_history'] = response_history

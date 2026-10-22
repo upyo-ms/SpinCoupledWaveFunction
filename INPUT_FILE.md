@@ -99,7 +99,7 @@ Omitted settings use existing CLI defaults. Key names use underscores.
 | `molecule` | `atom` or `xyz` (required), `basis`, `charge`, `multiplicity`, `unit` |
 | `calculation` | `backend`, `device`, `energy_evaluation`, `initial_guess`, `initial_json`, `allow_geometry_change`, `seed`, `initial_perturbation`, `initial_spin_guess`, `initial_spin_overlap_cutoff`, `determinant_size_profile` |
 | `active_space` | `mode`, `pi_electrons`, `pi_normal_mode`, `frozen_core`, `inactive_mos`, `active_mos`, `optimize_core`, `orbitals`, `ao_electrons`, `ao_threshold` |
-| `optimizer` | `method`, `spin_overlap_cutoff`, `orbital_overlap_cutoff`, `orbital_micro_iterations`, `orbital_update`, `spin_solver`, `joint_correction`, `joint_correction_start`, `epsilon`, `max_outer_iterations`, `max_inner_iterations`, `core_max_iterations`, `core_gradient_tolerance`, `second_order`, `second_order_fallback`, `core_response` (legacy alias), `max_permutation_pairs` |
+| `optimizer` | `method`, `spin_overlap_cutoff`, `orbital_overlap_cutoff`, `orbital_micro_iterations`, `orbital_update`, `spin_solver`, `joint_correction`, `joint_correction_start`, `epsilon`, `max_outer_iterations`, `max_inner_iterations`, `core_max_iterations`, `core_gradient_tolerance`, `second_order`, `second_order_backend`, `second_order_fallback`, `core_response` (legacy alias), `max_permutation_pairs` |
 | `output` | `path`, `verbose` |
 | `geometry` | `method`, `coordinates`, `bonds`, `symmetry_operations`, `freeze`, `set`, `constraint_tolerance`, `restart_json`, `max_seconds`, `max_iterations`, `max_evaluations`, `difference_step`, `gradient_tolerance`, `energy_tolerance`, `step_tolerance`, `trust_radius`, `max_radius`, `final_radius` |
 
@@ -154,8 +154,13 @@ adds the internal response to the outer orbital Hessian. With
 The old `core_response` key and `--[no-]core-response` flags are aliases for the
 same common option; old enabled settings now include internal corrections too.
 Contradictory TOML/API aliases are rejected; an explicit CLI flag takes
-precedence over the file regardless of which spelling it uses. This bounded
-CPU method retains the convergence criteria. See [second-order SCGVB
+precedence over the file regardless of which spelling it uses. The default
+curvature backend is `second_order_backend = "analytic"`; the optional `"jax"`
+backend differentiates the internal Rayleigh Hessian on the energy backend's
+JAX device (CPU when the energy backend is NumPy). CLI:
+`--second-order-backend jax`. This selection also applies to an automatic
+second-order retry, but never enables corrections on its own. Both backends
+retain the convergence criteria. See [second-order SCGVB
 corrections](SECOND_ORDER.md) for the method, allocation limit and diagnostics.
 
 To try the existing optimizer first and enable second-order corrections only

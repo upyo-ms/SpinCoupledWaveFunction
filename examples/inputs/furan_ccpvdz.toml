@@ -1,0 +1,44 @@
+# Explicit MINAO targets. pz is along the input Cartesian z axis.
+[molecule]
+xyz = "furan_sto3g.json"
+basis = "cc-pvdz"
+multiplicity = 1
+
+[calculation]
+backend = "jax"
+device = "cpu"
+energy_evaluation = "determinant"
+#initial_guess = "hf"
+#initial_spin_guess = "eigen"
+initial_json = "furan_sto3g.json"
+
+[optimizer]
+#method = "simultaneous"
+method = "alternating"
+core_max_iterations = 50
+core_gradient_tolerance = 1e-6
+max_outer_iterations = 50
+max_inner_iterations = 1000
+second_order_fallback = true
+
+[active_space]
+mode = "ao"
+orbitals = [
+    "1 2pz A", "2 2pz A", "3 2pz A","4 2pz A", "5 2pz A",
+]
+ao_electrons = 6
+#optimize_core = true # Relax sigma/inactive space, keeping the selected 1s core frozen.
+optimize_core = false
+
+[geometry]
+method = "bobyqa"
+coordinates = "auto"
+max_iterations = 100
+max_evaluations = 2000
+trust_radius = 0.05
+max_radius = 0.2
+final_radius = 0.001
+
+[output]
+path = "furan_ccpvdz.json"
+verbose = 2

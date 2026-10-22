@@ -182,9 +182,24 @@ Initial orbitals, initial spin-coupling coefficients `Cs`, and the optimization 
 | `[optimizer] orbital_micro_iterations` | `0` | Interval between spin solves during orbital updates: accepted steps for BFGS-based methods, attempted eigenproblem solves for single-orbital updates. `0` solves after the complete orbital block. |
 | `[optimizer] joint_correction` | `false` | Add a simultaneous orbital/spin correction after alternating updates. |
 | `[optimizer] joint_correction_start` | `1` | First sweep that includes joint correction. Alternating optimization continues afterward. |
-| `[optimizer] second_order` | `false` | Analytic joint C/Cs corrections in internal solves; also outer orbital response with `optimize_core = true`. Works with fixed inactive orbitals. See [details and limits](SECOND_ORDER.md). |
+| `[optimizer] second_order` | `false` | Safeguarded joint C/Cs corrections in internal solves; also outer orbital response with `optimize_core = true`. Works with fixed inactive orbitals. See [details and limits](SECOND_ORDER.md). |
+| `[optimizer] second_order_backend` | `"analytic"` | Select existing analytic curvature or opt-in `"jax"` autodifferentiated curvature. Does not enable corrections by itself. See [JAX option](SECOND_ORDER.md#jax-curvature-option). |
 | `[optimizer] second_order_fallback` | `false` | Try the existing optimizer first; retry electronic nonconvergence once with second-order corrections. Applies to both inactive settings and geometry evaluations. |
 | `[optimizer] core_response` | alias | Legacy name for `second_order`, including its internal corrections. |
+
+To run the optional JAX second-order example:
+
+```bash
+python calc_molecule.py examples/inputs/lih_second_order_jax.toml
+```
+
+Set both `second_order = true` and `second_order_backend = "jax"` under
+`[optimizer]`. The default curvature backend remains `"analytic"`, independently
+of the energy backend. With JAX energy evaluation, curvature uses the same JAX
+device; with NumPy energy evaluation, it uses JAX on CPU. This is an experimental
+alternative: improved convergence or GPU performance is not guaranteed. See
+[JAX curvature](SECOND_ORDER.md#jax-curvature-option) for installation requirements,
+CPU/GPU boundaries, size limits, and validation results.
 
 Example settings for initializing spin coefficients from an eigenproblem and using alternating optimization follow.
 Specify the molecule, basis, and active space in the input file.

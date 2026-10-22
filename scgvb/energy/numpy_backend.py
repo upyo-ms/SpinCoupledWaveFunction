@@ -281,13 +281,16 @@ class SCWF_Energy:
     def optimize(self, C, Cs, *, optimization_method='simultaneous',
                  spin_overlap_cutoff=1e-10, orbital_micro_iterations=0,
                  orbital_update='bfgs', spin_solver='canonical', orbital_overlap_cutoff=1e-10,
-                 joint_correction=False, joint_correction_start=1, second_order=False, **options):
+                 joint_correction=False, joint_correction_start=1, second_order=False,
+                 second_order_backend='analytic', **options):
         """Explicit method selection; the historical simultaneous solver is unchanged."""
         from scgvb.optimization.alternating import validate_options
         validate_options(optimization_method, spin_overlap_cutoff, orbital_micro_iterations,
                          orbital_update, spin_solver, orbital_overlap_cutoff, joint_correction, joint_correction_start)
         if type(second_order) is not bool:
             raise ValueError('second_order must be a boolean')
+        from scgvb.optimization.second_order import validate_backend
+        validate_backend(second_order_backend)
         if second_order:
             from scgvb.optimization.second_order import optimize as corrected_optimize
             return corrected_optimize(self, C, Cs, lambda c, cs: self.optimize(
@@ -295,7 +298,7 @@ class SCWF_Energy:
                 orbital_micro_iterations=orbital_micro_iterations, orbital_update=orbital_update,
                 spin_solver=spin_solver, orbital_overlap_cutoff=orbital_overlap_cutoff,
                 joint_correction=joint_correction, joint_correction_start=joint_correction_start,
-                **options), options)
+                **options), dict(options, second_order_backend=second_order_backend))
         if getattr(self, '_second_order_context', None) is None:
             self.second_order_info = None
         if optimization_method == 'simultaneous':

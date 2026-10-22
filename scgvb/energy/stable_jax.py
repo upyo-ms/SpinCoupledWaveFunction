@@ -14,8 +14,8 @@ from scgvb.energy.determinants import determinant_space_size, check_determinant_
 from scgvb.energy.compound_minors import make_compounds
 
 
-def make_hamiltonian(h, eri, na, nb, device, block_size=32):
-    """Return Hc using bounded gathers. No ERI eigenvalues are discarded."""
+def hamiltonian_factors(h, eri):
+    """Host preparation of exact one-body-square factors (no truncation)."""
     n = len(h)
     pair_basis = []
     for p in range(n):
@@ -31,6 +31,13 @@ def make_hamiltonian(h, eri, na, nb, device, block_size=32):
     weights, vectors = np.linalg.eigh(pair_eri)
     factors = np.einsum('ak,apq->kpq', vectors, pairs)
     hshift = h - .5 * np.einsum('pqqs->ps', eri)
+    return hshift, weights, factors
+
+
+def make_hamiltonian(h, eri, na, nb, device, block_size=32):
+    """Return Hc using bounded gathers. No ERI eigenvalues are discarded."""
+    n = len(h)
+    hshift, weights, factors = hamiltonian_factors(h, eri)
     weights, factors, hshift = [jax.device_put(a, device) for a in (weights, factors, hshift)]
 
     def links(count):
@@ -57,7 +64,8 @@ def make_hamiltonian(h, eri, na, nb, device, block_size=32):
     def one_body(ci, matrix):
         return sector(ci, matrix, alinks, adim) + sector(ci.T, matrix, blinks, bdim).T
 
-    def apply(ci):
+    # Explicit arguments let AD reuse a compiled graph with updated integrals.
+    def apply(ci, hshift=hshift, weights=weights, factors=factors):
         def add_factor(k, total):
             intermediate = one_body(ci, factors[k])
             return total + .5 * weights[k] * one_body(intermediate, factors[k])

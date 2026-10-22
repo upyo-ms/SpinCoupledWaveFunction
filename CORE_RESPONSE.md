@@ -26,8 +26,11 @@ nonempty inactive orbitals and `optimize_core=true`. `--check` validates the
 combination and derivative allocation bound. A complete small example is
 [lih_core_response.toml](examples/inputs/lih_core_response.toml).
 
-This is an experimental CPU response calculation. It works with the NumPy or
-JAX inner solver, and does not require JAX itself. The inner solver still varies
+The original analytic response described here runs on CPU and works with the
+NumPy or JAX inner solver; analytic curvature itself does not require JAX.
+The current interface also offers [optional JAX internal curvature](SECOND_ORDER.md#jax-curvature-option),
+while mixed orbital derivatives and the outer response action remain analytic
+CPU calculations. The inner solver still varies
 only SCGVB orbital coefficients C and spin-coupling coefficients Cs. Slater
 determinant expansion amplitudes are derived quantities; no FCI minimization or
 independent determinant-coefficient response is used.
