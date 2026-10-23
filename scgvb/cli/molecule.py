@@ -1,4 +1,7 @@
-"""Single-geometry nonorthogonal SCWF calculation, with optional HF initial orbitals."""
+"""AYATORI — Automatically Differentiable Spin-Coupled Wavefunctions.
+
+SCGVB single-point and geometry optimization with optional JAX derivatives.
+"""
 import argparse
 import json
 import math

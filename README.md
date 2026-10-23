@@ -1,4 +1,30 @@
-# Spin Coupled Wave Function
+# AYATORI — Automatically Differentiable Spin-Coupled Wavefunctions
+
+AYATORI combines nonorthogonal orbitals and spin coupling to construct SCGVB
+wavefunctions, with optional JAX automatic differentiation for gradients and
+second-order curvature.
+
+## Install and run
+
+From the repository root, install AYATORI into your active Python environment:
+
+```bash
+python -m pip install -e .
+ayatori --help
+ayatori examples/inputs/lih_second_order.toml --check
+ayatori examples/inputs/lih_second_order.toml
+```
+
+For CPU JAX and geometry-optimization dependencies, install
+`python -m pip install -e '.[jax,geometry]'`. Use `requirements-gpu-cuda13.txt`
+for a compatible NVIDIA environment.
+`ayatori` accepts the same input files and options as `python calc_molecule.py`,
+including geometry optimization and second-order corrections. For example:
+
+```bash
+ayatori examples/inputs/lih_second_order_jax.toml
+ayatori examples/inputs/h2_geometry_bobyqa.toml
+```
 
 This repository contains the program, usage documentation, molecular geometries, and example TOML inputs.
 Test code, validation data, calculation results, and logs are excluded.
@@ -35,7 +61,7 @@ from scgvb.orbitals.active_space import prepare_active_space
 
 You can also run `python -m scgvb.cli.molecule` or `python -m scgvb.analysis.population`.
 Install the package with `python -m pip install .`, or use `python -m pip install -e .` during development.
-Installation also provides the `scgvb-calculate`, `scgvb-diatomic`, `scgvb-orbitals`, and `scgvb-population` commands.
+Installation provides `ayatori` and the existing `scgvb-calculate`, `scgvb-diatomic`, `scgvb-orbitals`, and `scgvb-population` commands.
 Add JAX using `requirements-cpu.txt` or `requirements-gpu-cuda13.txt`.
 
 Run the local test suite with `python -m unittest discover -s tests -t . -p 'test_*.py'`.

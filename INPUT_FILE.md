@@ -1,6 +1,6 @@
 # Calculation input files
 
-`calc_molecule.py` supports TOML input. Comments start with `#`, booleans are `true` / `false`, and strings are quoted.
+The `ayatori` command (or `python calc_molecule.py`) supports TOML input. Comments start with `#`, booleans are `true` / `false`, and strings are quoted.
 Existing command-line options remain available.
 
 Initial guesses and optimization are described in:
@@ -10,7 +10,7 @@ Initial guesses and optimization are described in:
 - [Experimental joint corrections on HPC](HPC_README.md#comparing-joint-corrections-from-a-saved-state): diagnostic APIs for residual-direction additions and spin-response corrections.
 
 ```bash
-python calc_molecule.py examples/inputs/allyl.toml
+ayatori examples/inputs/allyl.toml
 # Equivalent command
 python calc_molecule.py --input examples/inputs/allyl.toml
 # Check only the active space and calculation size (HF selection still runs)

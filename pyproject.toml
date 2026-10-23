@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "scgvb"
+name = "ayatori"
 version = "0.1.0"
-description = "Spin-coupled generalized valence bond calculations with nonorthogonal orbitals"
+description = "AYATORI — Automatically Differentiable Spin-Coupled Wavefunctions"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -23,6 +23,7 @@ jax = ["jax==0.11.2"]
 cuda13 = ["jax[cuda13]==0.11.2"]
 
 [project.scripts]
+ayatori = "scgvb.cli.molecule:main"
 scgvb-calculate = "scgvb.cli.molecule:main"
 scgvb-diatomic = "scgvb.cli.diatomic:main"
 scgvb-orbitals = "scgvb.io.orbitals:main"
