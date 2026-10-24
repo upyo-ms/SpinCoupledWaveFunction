@@ -12,6 +12,10 @@
 !/tools/
 !/examples/
 !/hpc/
+!/assets/
+
+/assets/*
+!/assets/ayatori-logo.png
 
 /scgvb/**
 !/scgvb/**/

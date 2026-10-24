@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/ayatori-logo.png" alt="AYATORI — Automatically Differentiable Nonorthogonal Wavefunctions" width="800">
+</p>
+
 # AYATORI — Automatically Differentiable Spin-Coupled Wavefunctions
 
 AYATORI combines nonorthogonal orbitals and spin coupling to construct SCGVB

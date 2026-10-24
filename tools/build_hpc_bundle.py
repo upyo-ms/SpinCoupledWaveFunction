@@ -50,6 +50,7 @@ def build(output):
     names = [
         'calc_molecule.py','calc_diatomic_mol.py','generate_orbitals.py','build_hpc_bundle.py',
         'pyproject.toml','scgvb/io/orbital_viewer.html',
+        'assets/ayatori-logo.png',
         'examples/legacy_generate_cube.py',
         'README.md','INPUT_FILE.md','ACTIVE_SPACE.md','HPC_README.md','MOLECULE_INTERFACE.md','GEOMETRY_OPTIMIZATION.md',
         'JAX_BACKEND.md','ORBITAL_VIEWER.md','PHYSICS_FIX.md',
