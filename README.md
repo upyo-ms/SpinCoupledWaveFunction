@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/ayatori-logo.png" alt="AYATORI — Automatically Differentiable Nonorthogonal Wavefunctions" width="800">
+  <img src="assets/ayatori-logo.png" alt="AYATORI — Automatically Differentiable Spin-Coupled Wavefunctions" width="800">
 </p>
 
 # AYATORI — Automatically Differentiable Spin-Coupled Wavefunctions
