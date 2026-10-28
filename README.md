@@ -327,3 +327,7 @@ coordination with `--check` before optimization.
 For a 14-electron/14-orbital singlet, explicitly select determinant evaluation and `--determinant-size-profile large14`. The existing `standard` profile remains the default.
 See [ACTIVE_SPACE.md](ACTIVE_SPACE.md) for TOML, Python API, restart, and inactive-orbital relaxation settings.
 The phenazine input for the standard calculation code is `examples/inputs/phenazine14.toml`.
+
+## Contact
+
+Masato Sumita ([masato.sumita@riken.jp](mailto:masato.sumita@riken.jp))
